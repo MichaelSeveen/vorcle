@@ -34,6 +34,11 @@ yarn-error.log*
 .env*
 .env
 
+# lambda functions
+/lambda-chat
+/lambda-functions
+/testter
+
 # vercel
 .vercel
 
