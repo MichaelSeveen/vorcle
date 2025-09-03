@@ -1,8 +1,0 @@
-{
-  "name": "chat-reset-lambda",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@prisma/client": "^5.0.0"
-  }
-}
