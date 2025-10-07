@@ -4,15 +4,13 @@ import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
 
-interface CustomAudioPlayerProps {
+interface AudioPlayerProps {
   recordingUrl?: string | null;
-  isOwner?: boolean;
 }
 
 export default function MeetingRecordingAudioPlayer({
   recordingUrl,
-  isOwner = true,
-}: CustomAudioPlayerProps) {
+}: AudioPlayerProps) {
   const playerRef = useRef<AudioPlayer>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -92,76 +90,68 @@ export default function MeetingRecordingAudioPlayer({
   };
 
   return (
-    <div className="sticky bottom-4 bg-card rounded ring ring-border p-3 w-full">
-      <div style={{ display: "none" }}>
-        <AudioPlayer
-          ref={playerRef}
-          src={recordingUrl}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => setIsPlaying(false)}
-          onListen={(e) => {
-            const audio = e.target as HTMLAudioElement;
-            if (audio && audio.currentTime) {
-              setCurrentTime(audio.currentTime);
-            }
-          }}
-          onLoadedMetaData={(e) => {
-            const audio = e.target as HTMLAudioElement;
-            if (audio && audio.duration) {
-              setDuration(audio.duration);
-            }
-          }}
-          volume={volume}
-          hasDefaultKeyBindings={true}
-          autoPlayAfterSrcChange={false}
-          showSkipControls={false}
-          showJumpControls={false}
-          showDownloadProgress={false}
-          showFilledProgress={false}
-        />
-      </div>
-
-      <div className={!isOwner ? "max-w-4xl mx-auto" : ""}>
+    <div className="mt-6">
+      <p className="text-muted-foreground mb-1.5">Meeting Recording</p>
+      <div className="bg-card rounded ring ring-border p-3 w-full">
+        <div style={{ display: "none" }}>
+          <AudioPlayer
+            ref={playerRef}
+            src={recordingUrl}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+            onListen={(e) => {
+              const audio = e.target as HTMLAudioElement;
+              if (audio && audio.currentTime) {
+                setCurrentTime(audio.currentTime);
+              }
+            }}
+            onLoadedMetaData={(e) => {
+              const audio = e.target as HTMLAudioElement;
+              if (audio && audio.duration) {
+                setDuration(audio.duration);
+              }
+            }}
+            volume={volume}
+            hasDefaultKeyBindings={true}
+            autoPlayAfterSrcChange={false}
+            showSkipControls={false}
+            showJumpControls={false}
+            showDownloadProgress={false}
+            showFilledProgress={false}
+          />
+        </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={handleSkipBack}
-              className="hover:bg-muted rounded-lg transition-colors cursor-pointer"
+              className="rounded-full cursor-pointer"
             >
-              <SkipBack className="h-4 w-4 text-foreground" />
+              <SkipBack className="text-deep-saffron" />
             </Button>
-
             <Button
               variant="default"
               size="icon"
               onClick={handlePlayPause}
-              className="bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-colors cursor-pointer"
+              className="rounded-full cursor-pointer bg-deep-saffron"
             >
-              {isPlaying ? (
-                <Pause className="h-5 w-5" />
-              ) : (
-                <Play className="h-5 w-5" />
-              )}
+              {isPlaying ? <Pause /> : <Play />}
             </Button>
-
             <Button
               variant="ghost"
               size="icon"
               onClick={handleSkipForward}
-              className="hover:bg-muted rounded-lg transition-colors cursor-pointer"
+              className="rounded-full cursor-pointer"
             >
-              <SkipForward className="h-4 w-4" />
+              <SkipForward className="text-deep-saffron" />
             </Button>
           </div>
-
           <div className="flex-1 flex items-center gap-3">
             <span className="text-sm text-muted-foreground min-w-[40px]">
               {formatTime(currentTime)}
             </span>
-
             <div
               className="flex-1 bg-muted rounded-full h-2 cursor-pointer"
               role="button"
@@ -174,36 +164,25 @@ export default function MeetingRecordingAudioPlayer({
                 }}
               />
             </div>
-
             <span className="text-sm text-muted-foreground min-w-[40px]">
               {formatTime(duration)}
             </span>
           </div>
-
           <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <Volume2 className="size-4 text-muted-foreground" />
             <div
               className="w-20 bg-muted rounded-full h-2 cursor-pointer"
               role="button"
               onClick={handleVolumeChange}
             >
               <div
-                className="bg-primary h-2 rounded-full"
+                className="bg-deep-saffron h-2 rounded-full"
                 style={{ width: `${volume * 100}%` }}
               />
             </div>
           </div>
-
-          <p className="text-sm text-muted-foreground">Meeting Recording</p>
         </div>
       </div>
     </div>
   );
 }
-
-//  className={`sticky bottom-4 bg-card rounded ring ring-border p-3 w-full ${
-//         !isOwner ? "left-0 right-0" : ""
-//       }`}
-//       style={
-//         isOwner ? { left: "var(--sidebar-width, 16rem)", right: "24rem" } : {}
-//       }

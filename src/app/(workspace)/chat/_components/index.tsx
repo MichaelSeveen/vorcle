@@ -18,25 +18,23 @@ export default function WorkspaceChatView() {
   } = useChatAll();
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-        <div className="flex-1 p-6 overflow-auto">
-          {messages.length === 0 && showSuggestions ? (
-            <ChatSuggestions
-              suggestions={chatSuggestions}
-              onSuggestionClick={handleSuggestionClick}
-            />
-          ) : (
-            <ChatMessages messages={messages} isLoading={isLoading} />
-          )}
-        </div>
-        <ChatInput
-          chatInput={chatInput}
-          onInputChange={handleInputChange}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-        />
+    <div className="h-full flex flex-col max-w-6xl mx-auto w-full">
+      <div className="flex-1">
+        {messages.length === 0 && showSuggestions ? (
+          <ChatSuggestions
+            suggestions={chatSuggestions}
+            onSuggestionClick={handleSuggestionClick}
+          />
+        ) : (
+          <ChatMessages messages={messages} isLoading={isLoading} />
+        )}
       </div>
+      <ChatInput
+        chatInput={chatInput}
+        onInputChange={handleInputChange}
+        onSendMessage={handleSendMessage}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

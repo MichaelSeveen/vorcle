@@ -1,9 +1,21 @@
+import { cache } from "react";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/helpers/user";
 import WorkspaceMeetingDetailView from "./_components";
-import { redirect } from "next/navigation";
 import { segments } from "@/config/segments";
 import { getMeetingById } from "@/helpers/meetings";
-import { toast } from "sonner";
+import prisma from "@/lib/prisma";
+import { getUserIntegrationStatus } from "@/helpers/integrations/status";
+
+const getAllMeetings = cache(async () => {
+  const meetings = await prisma.meeting.findMany({ select: { id: true } });
+
+  return meetings.map(({ id }) => ({ meetingId: id }));
+});
+
+export async function generateStaticParams() {
+  return await getAllMeetings();
+}
 
 export default async function WorkspaceMeetingDetail({
   params,
@@ -12,29 +24,36 @@ export default async function WorkspaceMeetingDetail({
 }) {
   const user = await getCurrentUser();
 
-  const { meetingId } = await params;
-
   if (!user) {
     redirect(segments.signIn);
   }
 
-  const { error, data } = await getMeetingById(meetingId, user.id);
+  const { meetingId } = await params;
 
-  if (error) {
-    toast.error(error);
-    console.error(error);
-  }
+  const [meetingData, userIntegrations] = await Promise.all([
+    getMeetingById(meetingId, user.id),
+    getUserIntegrationStatus(user.id),
+  ]);
 
   const userData = {
+    id: user.id,
     name: user.name,
     image: user?.image,
   };
 
+  const integrationsData = userIntegrations
+    .filter((filteredData) => filteredData.isProviderConnected)
+    .filter((data) => data.provider !== "slack")
+    .map((integration) => ({
+      ...integration,
+    }));
+
   return (
     <WorkspaceMeetingDetailView
-      meetingData={data}
+      meetingData={meetingData}
       meetingId={meetingId}
       userData={userData}
+      integrationsData={integrationsData}
     />
   );
 }

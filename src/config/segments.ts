@@ -7,5 +7,6 @@ export const segments = {
     integrations: "/integrations",
     pricing: "/pricing",
     settings: "/settings",
+    calendar: "/calendar",
   },
 };

@@ -42,24 +42,24 @@ export default function MeetingTranscriptView({
       </h3>
 
       <ScrollArea className="h-[32rem]">
-        {transcript.map((segment, index) => (
-          <ul
-            key={index}
-            className="pb-4 border-b border-border last:border-b-0"
-          >
-            <li className="flex items-center gap-3 mb-2 mt-1">
-              <span className="font-medium text-blue-600 dark:text-blue-500">
-                {segment.speaker}
-              </span>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                {getSpeakerSegmentTime(segment)}
-              </span>
+        <ul>
+          {transcript.map((segment, index) => (
+            <li
+              key={index}
+              className="flex flex-col gap-2 items-start border-b last:border-b-0 pt-0.5 pb-3"
+            >
+              <p>
+                <strong>{segment.speaker}</strong> •{" "}
+                <span className="text-deep-saffron underline">
+                  {getSpeakerSegmentTime(segment)}
+                </span>
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                {getSegmentText(segment)}
+              </p>
             </li>
-            <p className="text-muted-foreground leading-relaxed pl-4">
-              {getSegmentText(segment)}
-            </p>
-          </ul>
-        ))}
+          ))}
+        </ul>
       </ScrollArea>
     </div>
   );

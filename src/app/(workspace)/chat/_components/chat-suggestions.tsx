@@ -1,3 +1,5 @@
+import { Suggestion, Suggestions } from "@/components/ui/suggestion";
+
 interface ChatSuggestionsProps {
   suggestions: string[];
   onSuggestionClick: (suggestion: string) => void;
@@ -8,31 +10,28 @@ export default function ChatSuggestions({
   onSuggestionClick,
 }: ChatSuggestionsProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-full space-y-8">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-foreground mb-3">
-          Ask AI chatbot any question about all your meetings
+    <div className="flex flex-col items-center justify-center h-full gap-8 max-w-5xl mx-auto w-full">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground mb-3 text-center text-pretty">
+          Ask <span className="text-deep-saffron">Vorcle Bot</span> questions
+          about your meetings.
         </h2>
 
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground text-center text-pretty">
           I can search across all your meetings to find information, summarize
           discussions, and answer questions
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 w-full max-w-3xl">
+      <Suggestions>
         {suggestions.map((suggestion, index) => (
-          <button
+          <Suggestion
             key={index}
             onClick={() => onSuggestionClick(suggestion)}
-            className="p-4 bg-card border border-border rounded-lg hover:bg-primary/10 hover:border-primary/30 transition-colors text-left group"
-          >
-            <p className="text-sm text-foreground group-hover:text-primary transition-colors">
-              ⚡️ {suggestion}
-            </p>
-          </button>
+            suggestion={suggestion}
+          />
         ))}
-      </div>
+      </Suggestions>
     </div>
   );
 }

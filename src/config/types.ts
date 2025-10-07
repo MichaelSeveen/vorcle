@@ -1,4 +1,4 @@
-import { SubscriptionPlan } from "@prisma/client";
+import type { Meeting, SubscriptionPlan } from "@prisma/client";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { JSX } from "react";
 
@@ -152,7 +152,7 @@ export const TIERS: Plan[] = [
     id: "enterprise-tier",
     name: "ENTERPRISE",
     slug: "enterprise",
-    productId: `${process.env.NEXT_PUBLIC_PRODUCT_BUSINESS}`,
+    productId: `${process.env.NEXT_PUBLIC_PRODUCT_ENTERPRISE}`,
     priceMonthly: 69,
     description:
       "For individuals and teams who want unlimited access and control",
@@ -167,3 +167,58 @@ export const TIERS: Plan[] = [
     highlight: false,
   },
 ];
+
+export type MeetingTableItems = Pick<
+  Meeting,
+  | "id"
+  | "title"
+  | "description"
+  | "startTime"
+  | "endTime"
+  | "processed"
+  | "createdAt"
+  | "attendees"
+>;
+
+export interface UserIntegrationResult {
+  provider: IntegrationProvider;
+  name: string;
+  isProviderConnected: boolean;
+  boardName?: string | null;
+  projectName?: string | null;
+  channelName?: string | null;
+}
+
+export const GOOGLE_CALENDAR_SCOPES = [
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/calendar.events.readonly",
+] as const;
+
+export interface GoogleCalendarEvent {
+  id: string;
+  summary?: string;
+  start?: {
+    dateTime?: string;
+    date?: string;
+  };
+  end?: {
+    dateTime?: string;
+  };
+  attendees?: GoogleCalendarAttendee[];
+  hangoutLink?: string | null;
+  conferenceData?: {
+    entryPoints: Array<{
+      uri: string;
+    }>;
+  } | null;
+  botScheduled: boolean;
+  meetingId: string;
+  location?: string;
+}
+
+interface GoogleCalendarAttendee {
+  id?: string;
+  name?: string;
+  email?: string;
+  responseStatus?: "accepted" | "declined" | "tentative" | "needsAction";
+}

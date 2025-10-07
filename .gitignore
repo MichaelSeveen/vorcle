@@ -38,6 +38,7 @@ yarn-error.log*
 /lambda-chat
 /lambda-function
 /testter.ts
+/scripts
 
 # vercel
 .vercel

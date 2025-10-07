@@ -11,6 +11,17 @@ export async function createActionItem(meetingId: string, itemText: string) {
 
     if (!currentUser) return { success: false, error: "Not authenticated" };
 
+    if (!itemText || itemText.trim().length === 0) {
+      return { success: false, error: "Action item text cannot be empty" };
+    }
+
+    if (itemText.trim().length > 500) {
+      return {
+        success: false,
+        error: "Action item text too long (max 500 characters)",
+      };
+    }
+
     const meeting = await prisma.meeting.findFirst({
       where: {
         id: meetingId,

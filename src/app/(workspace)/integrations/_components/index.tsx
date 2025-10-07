@@ -8,16 +8,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircleIcon, AlertTriangleIcon, Loader } from "lucide-react";
+import { AlertCircleIcon, AlertTriangleIcon } from "lucide-react";
 import { useIntegrations } from "../hooks/use-integrations";
 import SetupForm from "./setup-form";
 import IntegrationCard from "./integration-card";
-import { IntegrationProvider } from "@/config/types";
+import { IntegrationProvider, UserIntegrationResult } from "@/config/types";
 
-export default function WorkspaceIntegrationsView() {
+interface Props {
+  integrationData: UserIntegrationResult[];
+  calendarStatus: { success: boolean; message?: string; connected?: boolean };
+  currentUserId: string;
+}
+
+export default function WorkspaceIntegrationsView({
+  integrationData,
+  calendarStatus,
+  currentUserId,
+}: Props) {
   const {
     integrations,
-    isLoading,
     setupProvider,
     setupData,
     setSetupData,
@@ -30,18 +39,22 @@ export default function WorkspaceIntegrationsView() {
     disconnectProvider,
     submitSetup,
     setSetupProvider,
-  } = useIntegrations();
+  } = useIntegrations({
+    integrationData,
+    calendarStatus,
+    currentUserId,
+  });
 
-  if (isLoading) {
-    return (
-      <div className="h-full bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center justify-center gap-4">
-          <Loader className="animate-spin size-8" />
-          <p className="text-lg font-semibold">Loading Integrations...</p>
-        </div>
-      </div>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <div className="h-full bg-background flex items-center justify-center">
+  //       <div className="flex flex-col items-center justify-center gap-4">
+  //         <Loader className="animate-spin size-8" />
+  //         <p className="text-lg font-semibold">Loading Integrations...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   const activeIntegration = setupProvider
     ? integrations.find(
@@ -52,13 +65,13 @@ export default function WorkspaceIntegrationsView() {
   const setUpDescription = activeIntegration?.description;
 
   return (
-    <div className="min-h-screen bg-background max-w-6xl mx-auto w-full">
+    <div className="max-w-6xl mx-auto w-full">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
+        <h1 className="text-2xl md:text-4xl font-semibold text-foreground mb-2">
           Integrations
         </h1>
 
-        <p className="text-muted-foreground">
+        <p className="text-sm md:text-base text-muted-foreground">
           Connect your favourite tools to automatically add action items from
           meetings.
         </p>
@@ -91,7 +104,7 @@ export default function WorkspaceIntegrationsView() {
         </Dialog>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {integrations.map((integration) => (
           <IntegrationCard
             key={integration.provider}
@@ -132,28 +145,4 @@ export default function WorkspaceIntegrationsView() {
       </Alert>
     </div>
   );
-}
-
-{
-  /* {setupProvider && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-card rounded-lg p-6 border border-border max-w-md w-full mx-4">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
-                Setup {setupProvider.charAt(0).toUpperCase() + setupProvider.slice(1)}
-              </h2>
-
-              <SetupForm
-                platform={setupMode}
-                data={setupData}
-                onSubmit={handleSetupSubmit}
-                onCancel={() => {
-                  setSetupMode(null);
-                  setSetupData(null);
-                  window.history.replaceState({}, "", "/integrations");
-                }}
-                loading={setupLoading}
-              />
-            </div>
-          </div>
-        )} */
 }

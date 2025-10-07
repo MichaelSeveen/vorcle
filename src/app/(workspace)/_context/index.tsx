@@ -62,7 +62,6 @@ interface UsageContextType {
   limits: PlanLimits;
   incrementChatUsage: () => Promise<void>;
   incrementMeetingUsage: () => Promise<void>;
-  refreshUsage: () => Promise<void>;
 }
 
 const TokenUsageContext = createContext<UsageContextType | undefined>(
@@ -89,24 +88,18 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
   const limits = PLAN_LIMITS[effectivePlan];
 
   const isFree = effectivePlan === "FREE";
+  const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
 
   const chatMessagesToday = usage?.chatMessagesToday ?? 0;
   const meetingsThisMonth = usage?.meetingsThisMonth ?? 0;
 
-  const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
-
   const canChat =
-    (isFree &&
-      (limits.chatMessages === -1 ||
-        chatMessagesToday < limits.chatMessages)) ||
-    (isActivePaid &&
-      (limits.chatMessages === -1 || chatMessagesToday < limits.chatMessages));
+    (isFree || isActivePaid) &&
+    (limits.chatMessages === -1 || chatMessagesToday < limits.chatMessages);
 
   const canScheduleMeeting =
-    (isFree &&
-      (limits.meetings === -1 || meetingsThisMonth < limits.meetings)) ||
-    (isActivePaid &&
-      (limits.meetings === -1 || meetingsThisMonth < limits.meetings));
+    (isFree || isActivePaid) &&
+    (limits.meetings === -1 || meetingsThisMonth < limits.meetings);
 
   const fetchUsage = useCallback(async () => {
     try {
@@ -116,8 +109,8 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
         setUsage(data);
       }
     } catch (error) {
-      toast.error("Failed to fetch usage data");
-      console.error("failed to fetch usage data", error);
+      toast.error("Failed to load usage data");
+      console.error("Failed to load usage data", error);
     } finally {
       setLoading(false);
     }
@@ -130,6 +123,10 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
 
     try {
       const { success, upgradeRequired, message } = await incrementChat();
+
+      if (!success) {
+        refreshUsage();
+      }
 
       if (success) {
         setUsage((prev) =>
@@ -159,6 +156,10 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
     try {
       const { success } = await incrementMeeting();
 
+      if (!success) {
+        refreshUsage();
+      }
+
       if (success) {
         setUsage((prev) =>
           prev
@@ -181,6 +182,7 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       const userId = await getClientSession();
 
       if (userId) {
@@ -201,7 +203,6 @@ export function TokenUsageProvider({ children }: { children: ReactNode }) {
     limits,
     incrementChatUsage,
     incrementMeetingUsage,
-    refreshUsage,
   };
 
   return (

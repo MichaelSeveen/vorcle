@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Integration, IntegrationProvider } from "@/config/types";
+import { UserIntegrationResult, IntegrationProvider } from "@/config/types";
 import { AsanaIcon, JiraIcon, TrelloIcon } from "@/components/custom-icons";
 
 interface ActionItemRowProps {
@@ -14,8 +14,8 @@ interface ActionItemRowProps {
     id: number;
     text: string;
   };
-  integrations: Integration[];
-  loading: { [key: string]: boolean };
+  integrations: UserIntegrationResult[];
+  loading: boolean;
   addToIntegration: (
     provider: string,
     item: { id: number; text: string }
@@ -32,7 +32,7 @@ export default function ActionItemRow({
 }: ActionItemRowProps) {
   const hasConnectedIntegrations = integrations.length > 0;
 
-  function handleIntegrationLogo(name: Integration["provider"]) {
+  function handleIntegrationLogo(name: UserIntegrationResult["provider"]) {
     switch (name) {
       case "jira":
         return <JiraIcon />;
@@ -48,24 +48,22 @@ export default function ActionItemRow({
   }
 
   return (
-    <div className="group relative">
-      <div className="flex items-start gap-3">
-        <span className="size-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+    <li className="group relative">
+      <div className="flex items-center gap-3">
+        <span className="size-2 rounded-full bg-deep-saffron shrink-0 ml-0.5" />
 
-        <p className="flex-1 text-sm leading-relaxed text-foreground">
-          {item.text}
-        </p>
+        <p className="flex-1 text-sm text-foreground">{item.text}</p>
 
         {hasConnectedIntegrations && (
           <div className="transition-opacity relative">
             {integrations.length === 1 ? (
               <Button
                 onClick={() => addToIntegration(integrations[0].provider, item)}
-                disabled={loading[`${integrations[0].provider}-${item.id}`]}
+                disabled={loading}
                 size="sm"
                 className="px-3 py-1 text-xs flex items-center gap-1"
               >
-                {loading[`${integrations[0].provider}-${item.id}`] ? (
+                {loading ? (
                   "Adding..."
                 ) : (
                   <>
@@ -96,9 +94,7 @@ export default function ActionItemRow({
                       )}
 
                       <span>
-                        {loading[`${integration.provider}-${item.id}`]
-                          ? "Adding..."
-                          : `Add to ${integration.name}`}
+                        {loading ? "Adding..." : `Add to ${integration.name}`}
                       </span>
                     </DropdownMenuItem>
                   ))}
@@ -109,27 +105,13 @@ export default function ActionItemRow({
         )}
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           onClick={() => handleDeleteItem(item.id)}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 text-destructive rounded transition-all cursor-pointer"
+          className="opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-destructive rounded transition-all cursor-pointer"
         >
           <Trash2 />
         </Button>
       </div>
-    </div>
+    </li>
   );
-}
-
-{
-  /* <div className='w-4 h-4 relative flex-shrink-0'>
-                                                <img
-                                                    src={integration.logo}
-                                                    alt={integration.name}
-                                                    className='w-full h-full object-contain'
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none'
-                                                    }}
-                                                />
-
-                                            </div> */
 }

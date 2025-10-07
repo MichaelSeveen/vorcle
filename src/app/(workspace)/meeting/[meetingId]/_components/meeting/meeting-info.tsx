@@ -1,4 +1,9 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DuoCalendarIcon,
+  DuoClockIcon,
+} from "@/components/custom-icons/duotone";
+
+import { AvatarRoot, AvatarImage } from "@/components/align-ui/avatar";
 import { MeetingInfoData, UserData } from "@/config/types";
 import { getInitials } from "@/lib/utils";
 
@@ -17,33 +22,35 @@ export default function MeetingInfo({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-2">{meetingData.title}</h2>
+      <h1 className="text-xl font-semibold mb-2">{meetingData.title}</h1>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
-          {userData?.image ? (
-            <Avatar className="rounded-md size-5">
-              <AvatarImage src={avatar} alt={userData.name} />
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
+          {userData.image ? (
+            <AvatarRoot className="rounded-md">
+              <AvatarImage
+                src={avatar}
+                alt={`The profile image of ${userData.name}`}
+              />
+            </AvatarRoot>
           ) : (
-            <span className="text-sm font-medium">
-              {meetingData.userName.charAt(0).toUpperCase()}
-            </span>
+            <AvatarRoot color="blue">{initials}</AvatarRoot>
           )}
           {meetingData.userName}
         </div>
         <time
           dateTime={meetingData.date}
-          className="text-sm text-muted-foreground"
+          className="text-sm text-muted-foreground flex items-center gap-1"
         >
-          📅 {meetingData.date}
+          <DuoCalendarIcon className="size-4" />
+          {meetingData.date}
         </time>
         <time
           dateTime={`${meetingData.date} ${meetingData.time}`}
-          className="text-sm text-muted-foreground"
+          className="text-sm text-muted-foreground flex items-center gap-1"
         >
-          🕐 {meetingData.time}
+          <DuoClockIcon className="size-4" />
+          {meetingData.time}
         </time>
       </div>
     </div>

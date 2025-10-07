@@ -18,8 +18,11 @@ import {
   PricingCardPriceItem,
 } from "./pricing-card";
 import { Plan } from "@/config/types";
-import { Pill, PillIndicator } from "@/components/ui/pill";
 import { checkout, customer } from "@/lib/auth-client";
+import {
+  StatusBadgeDot,
+  StatusBadgeRoot,
+} from "@/components/align-ui/status-badge";
 
 interface WorkspacePricingViewProps {
   planData: Plan;
@@ -49,16 +52,18 @@ export default function WorkspacePricingView({
   }
 
   return (
-    <PricingCard className={cn(planData.highlight && "ring-1 ring-orange-600")}>
+    <PricingCard
+      className={cn(planData.highlight && "ring-1 ring-deep-saffron")}
+    >
       <PricingCardHeader>
         <PricingCardPlan>
           <PricingCardPlanName>{planData.name}</PricingCardPlanName>
 
           {isActivePlan ? (
-            <Pill>
-              <PillIndicator pulse variant="success" />
+            <StatusBadgeRoot status="completed">
+              <StatusBadgeDot />
               Active
-            </Pill>
+            </StatusBadgeRoot>
           ) : null}
         </PricingCardPlan>
         <PricingCardDescription>{planData.description}</PricingCardDescription>
@@ -81,7 +86,7 @@ export default function WorkspacePricingView({
             className={cn(
               "w-full cursor-pointer",
               planData.highlight &&
-                "bg-gradient-to-b from-orange-500 to-orange-600 shadow-[0_10px_25px_rgba(255,115,0,0.3)]"
+                "bg-gradient-to-b from-deep-saffron to-orange-500 shadow-[0_10px_25px_rgba(255,115,0,0.3)]"
             )}
             onClick={() => handleCheckout(planData.slug, planData.productId)}
           >

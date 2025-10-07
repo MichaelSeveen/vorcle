@@ -1,6 +1,5 @@
 "use client";
 
-import { Command } from "lucide-react";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
@@ -21,8 +20,10 @@ import {
   IntegrationsIcon,
   PricingIcon,
   SettingsIcon,
+  CalendarIcon,
 } from "@/components/custom-icons";
 import DashboardSidebarUsageCard from "./dashboard-sidebar-usage-card";
+import { VorcleLogo } from "@/components/custom-icons/brand-logo";
 
 const DASHBOARD_LINKS = [
   {
@@ -31,7 +32,7 @@ const DASHBOARD_LINKS = [
     icon: HomeIcon,
   },
   {
-    title: "Chat with AI",
+    title: "Chat with Vorcle",
     url: segments.workspace.chat,
     icon: ChatMessageIcon,
   },
@@ -39,6 +40,11 @@ const DASHBOARD_LINKS = [
     title: "Integrations",
     url: segments.workspace.integrations,
     icon: IntegrationsIcon,
+  },
+  {
+    title: "Calendar",
+    url: segments.workspace.calendar,
+    icon: CalendarIcon,
   },
   {
     title: "Pricing",
@@ -63,9 +69,9 @@ export default function DashboardSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Command className="size-4" />
+              <a href={segments.workspace.home}>
+                <div className="bg-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <VorcleLogo className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">Vorcle Bot</span>

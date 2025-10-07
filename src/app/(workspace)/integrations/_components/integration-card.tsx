@@ -1,4 +1,6 @@
-import { BadgeCheck, ExternalLink, Settings } from "lucide-react";
+"use client";
+
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Integration, IntegrationProvider } from "@/config/types";
 import {
@@ -9,27 +11,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useTransition } from "react";
+import { Switch } from "@/components/align-ui/switch";
 
 interface IntegrationCardProps {
   integration: Integration;
-  enable: (provider: IntegrationProvider) => void;
-  disable: (provider: IntegrationProvider) => void;
+  enable: (provider: IntegrationProvider) => Promise<void>;
+  disable: (provider: IntegrationProvider) => Promise<void>;
   onSetup: (provider: string) => void;
 }
 
-function IntegrationCard({
+export default function IntegrationCard({
   integration,
   enable,
   disable,
   onSetup,
 }: IntegrationCardProps) {
+  const [providerTransition, startProviderTransition] = useTransition();
+
   const integrationTitle =
     integration.provider === "trello"
       ? "Board Name:"
       : integration.provider === "slack"
       ? "Channel Name:"
       : "Project Name:";
+
+  function handleProviderToggle(checked: boolean) {
+    startProviderTransition(async () => {
+      if (checked) {
+        await enable(integration.provider);
+      } else {
+        await disable(integration.provider);
+      }
+    });
+  }
 
   return (
     <Card>
@@ -39,13 +54,12 @@ function IntegrationCard({
             <integration.logo className="size-6" />
             {integration.name}
           </div>
-          <Badge
-            variant="default"
-            className="text-white bg-green-600 dark:bg-green-600"
-          >
-            <BadgeCheck />
-            {integration.isProviderConnected ? "Enabled" : "Disabled"}
-          </Badge>
+          <Switch
+            id={integration.provider}
+            checked={integration.isProviderConnected}
+            onCheckedChange={handleProviderToggle}
+            disabled={providerTransition}
+          />
         </CardTitle>
 
         <CardDescription>{integration.description}</CardDescription>
@@ -87,45 +101,18 @@ function IntegrationCard({
 
       <CardFooter>
         {integration.isProviderConnected ? (
-          integration.provider === "google-calendar" ? (
+          integration.provider === "google-calendar" ? null : (
             <Button
               variant="outline"
-              onClick={() => disable(integration.provider)}
-              className="flex-1 cursor-pointer"
-              type="button"
+              onClick={() => onSetup(integration.provider)}
+              className="w-full"
             >
-              Disable
+              <Settings />
+              Manage
             </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => disable(integration.provider)}
-                className="flex-1 mr-2"
-              >
-                Disable
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => onSetup(integration.provider)}
-                size="icon"
-              >
-                <Settings />
-              </Button>
-            </>
           )
-        ) : (
-          <Button
-            onClick={() => enable(integration.provider)}
-            className="w-full"
-          >
-            Enable
-            <ExternalLink />
-          </Button>
-        )}
+        ) : null}
       </CardFooter>
     </Card>
   );
 }
-
-export default IntegrationCard;

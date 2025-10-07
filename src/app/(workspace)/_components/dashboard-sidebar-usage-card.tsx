@@ -10,9 +10,10 @@ import { Progress } from "@/components/ui/progress";
 import { segments } from "@/config/segments";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardSidebarUsageCard() {
-  const { usage, limits } = useTokenUsage();
+  const { usage, limits, loading } = useTokenUsage();
 
   const meetingProgress =
     usage && limits.meetings !== -1
@@ -65,15 +66,19 @@ export default function DashboardSidebarUsageCard() {
 
   const upgradeInfo = getUpgradeInfo();
 
+  if (loading) {
+    return <Loader2 className="size-8 animate-spin" />;
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {usage && (
-        <Card className="gap-2 py-4 shadow-none">
+        <Card className="py-4">
           <CardHeader className="px-4">
-            <CardTitle className="text-sm">
+            <CardTitle>
               <p>
-                Current Plan:
-                <strong className="text-blue-600 ml-1 font-mono">
+                Plan:
+                <strong className="text-deep-saffron ml-1 font-mono">
                   {usage.effectivePlan}
                 </strong>
               </p>
@@ -83,38 +88,30 @@ export default function DashboardSidebarUsageCard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="px-4">
-            <div className="space-y-2 mb-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-sidebar-accent-foreground/70">
-                  Meetings
-                </span>
-                <span className="text-xs text-sidebar-accent-foreground/70">
+            <div className="space-y-2 mb-2">
+              <div className="flex justify-between items-center text-sm">
+                <span>Meetings</span>
+                <span>
                   {usage.meetingsThisMonth}/
                   {limits.meetings === -1 ? "∞" : limits.meetings}
                 </span>
               </div>
               {limits.meetings !== -1 && <Progress value={meetingProgress} />}
               {limits.meetings === -1 && (
-                <div className="text-xs text-sidebar-accent-foreground/50 italic">
-                  Unlimited
-                </div>
+                <div className="text-sm italic">Unlimited</div>
               )}
             </div>
-            <div className="space-y-2 mb-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-sidebar-accent-foreground/70">
-                  Chat Messages
-                </span>
-                <span className="text-xs text-sidebar-accent-foreground/70">
+            <div className="space-y-2 mb-2">
+              <div className="flex justify-between items-center text-sm">
+                <span>Chat Messages</span>
+                <span>
                   {usage.chatMessagesToday}/
                   {limits.chatMessages === -1 ? "∞" : limits.chatMessages}
                 </span>
               </div>
               {limits.chatMessages !== -1 && <Progress value={chatProgress} />}
               {limits.chatMessages === -1 && (
-                <div className="text-xs text-sidebar-accent-foreground/50 italic">
-                  Unlimited
-                </div>
+                <div className="text-sm italic">Unlimited</div>
               )}
             </div>
           </CardContent>
@@ -122,9 +119,9 @@ export default function DashboardSidebarUsageCard() {
       )}
 
       {upgradeInfo && (
-        <Card className="gap-2 py-4 shadow-none">
+        <Card className="py-4">
           <CardHeader className="px-4">
-            <CardTitle className="text-sm">{upgradeInfo.title}</CardTitle>
+            <CardTitle>{upgradeInfo.title}</CardTitle>
             <CardDescription className="text-balance">
               {upgradeInfo.description}
             </CardDescription>
@@ -134,7 +131,7 @@ export default function DashboardSidebarUsageCard() {
               <Link
                 href={segments.workspace.pricing}
                 className={buttonVariants({
-                  className: "w-full",
+                  className: "w-full bg-accent",
                 })}
               >
                 {upgradeInfo.title}

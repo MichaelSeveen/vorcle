@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SlackIcon,
   JiraIcon,
@@ -5,32 +6,41 @@ import {
   GoogleCalendarIcon,
   AsanaIcon,
 } from "@/components/custom-icons";
-import { Integration } from "@/config/types";
-import { linkSocial, useSession } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import {
+  Integration,
+  UserIntegrationResult,
+  GOOGLE_CALENDAR_SCOPES,
+} from "@/config/types";
+import { linkSocial } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 export interface UseIntegrationsReturn {
   integrations: Integration[];
-  isLoading: boolean;
   setupProvider: string | null;
   setupData: unknown | null;
-  setSetupData: (data: unknown | null) => void;
-  loadSetupData: (provider: string) => void;
   isSetupLoading: boolean;
   isModalOpen: boolean;
-  setIsModalOpen: (iseModalOpen: boolean) => void;
   error: string | null;
-  loadIntegrations: () => Promise<void>;
+  setSetupData: (data: unknown | null) => void;
+  setIsModalOpen: (isModalOpen: boolean) => void;
+  setSetupProvider: (provider: string | null) => void;
+  loadSetupData: (provider: string) => Promise<void>;
   connectProvider: (provider: Integration["provider"]) => Promise<void>;
   disconnectProvider: (provider: Integration["provider"]) => Promise<void>;
   submitSetup: (
     provider: Integration["provider"],
     config: unknown
   ) => Promise<void>;
-  setSetupProvider: (provider: string | null) => void;
+}
+interface UseIntegrationsProps {
+  integrationData: UserIntegrationResult[];
+  calendarStatus: { success: boolean; message?: string; connected?: boolean };
+  currentUserId: string;
 }
 
-const DEFAULT_INTEGRATIONS: Integration[] = [
+type SetupProvider = "trello" | "jira" | "asana" | "slack";
+
+const DEFAULT_INTEGRATIONS: Readonly<Integration[]> = [
   {
     provider: "slack",
     name: "Slack",
@@ -67,218 +77,241 @@ const DEFAULT_INTEGRATIONS: Integration[] = [
     isProviderConnected: false,
     logo: GoogleCalendarIcon,
   },
+] as const;
+
+const SETUP_PROVIDERS: readonly SetupProvider[] = [
+  "trello",
+  "jira",
+  "asana",
+  "slack",
 ];
 
-export function useIntegrations(): UseIntegrationsReturn {
-  const { data: session } = useSession();
+const isSetupProvider = (value: string | null): value is SetupProvider =>
+  value !== null && SETUP_PROVIDERS.includes(value as SetupProvider);
 
-  const [integrations, setIntegrations] =
-    useState<Integration[]>(DEFAULT_INTEGRATIONS);
-  const [isLoading, setIsLoading] = useState(true);
+export function useIntegrations({
+  integrationData,
+  calendarStatus,
+  currentUserId,
+}: UseIntegrationsProps): UseIntegrationsReturn {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [setupProvider, setSetupProvider] = useState<string | null>(null);
   const [setupData, setSetupData] = useState<unknown | null>(null);
   const [isSetupLoading, setIsSetupLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(
-    function initialize() {
-      const abortController = new AbortController();
-      const userId = session?.user.id;
+  const [disconnectedProviders, setDisconnectedProviders] = useState<
+    Set<string>
+  >(new Set());
 
-      if (userId) {
-        loadIntegrations(abortController.signal);
+  const setupAbortController = useRef<AbortController | null>(null);
+
+  const integrations = useMemo(() => {
+    const isCalendarConnected =
+      calendarStatus.success && (calendarStatus.connected ?? false);
+
+    return DEFAULT_INTEGRATIONS.map((integration) => {
+      if (disconnectedProviders.has(integration.provider)) {
+        return { ...integration, isProviderConnected: false };
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const setup = urlParams.get("setup");
-
-      if (setup && ["trello", "jira", "asana", "slack"].includes(setup)) {
-        setSetupProvider(setup);
-        setIsModalOpen(true);
-        loadSetupData(setup, abortController.signal);
+      if (integration.provider === "google-calendar") {
+        return {
+          ...integration,
+          isProviderConnected: isCalendarConnected,
+        };
       }
 
-      return function cleanup() {
-        abortController.abort();
+      const status = integrationData.find(
+        (data) => data.provider === integration.provider
+      );
+
+      if (!status) return { ...integration };
+
+      return {
+        ...integration,
+        isProviderConnected: status.isProviderConnected || false,
+        boardName: status.boardName ?? "",
+        projectName: status.projectName ?? "",
+        channelName: status.channelName ?? "",
       };
-    },
-    [session?.user.id]
-  );
+    });
+  }, [integrationData, calendarStatus, disconnectedProviders]);
 
-  async function loadIntegrations(signal?: AbortSignal) {
-    setIsLoading(true);
-    setError(null);
+  const loadSetupData = useCallback(async (provider: string) => {
+    setupAbortController.current?.abort();
+    setupAbortController.current = new AbortController();
 
     try {
-      const [integrationsResponse, calendarResponse] = await Promise.all([
-        fetch("/api/integrations/status", { signal }),
-        fetch("/api/user/calendar-status", { signal }),
-      ]);
+      setIsSetupLoading(true);
+      setError(null);
 
-      if (!integrationsResponse.ok || !calendarResponse.ok) {
-        throw new Error("Failed to load integration statuses");
-      }
-
-      const integrationsData = await integrationsResponse.json();
-
-      const calendarData = await calendarResponse.json();
-
-      setIntegrations((prev: Integration[]) => {
-        return prev.map((integration: Integration) => {
-          if (integration.provider === "google-calendar") {
-            return {
-              ...integration,
-              isProviderConnected: calendarData.connected || false,
-            };
-          }
-
-          const status = integrationsData.find(
-            (data: Integration) => data.provider === integration.provider
-          );
-
-          return {
-            ...integration,
-            isProviderConnected: status?.isProviderConnected || false,
-            boardName: status?.boardName,
-            projectName: status?.projectName,
-            channelName: status?.channelName,
-          };
-        });
-      });
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        setError("Failed to load integrations. Please try again.");
-        console.error("Error loading integrations:", err);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function loadSetupData(provider: string, signal?: AbortSignal) {
-    try {
       const response = await fetch(`/api/integrations/${provider}/setup`, {
-        signal,
+        signal: setupAbortController.current.signal,
       });
 
       if (!response.ok) {
         throw new Error(`Failed to load ${provider} setup data`);
       }
+
       const data = await response.json();
       setSetupData(data);
-    } catch (err: unknown) {
+    } catch (err) {
       if (err instanceof Error && err.name !== "AbortError") {
-        setError(`Error loading ${provider} setup data. Please try again.`);
+        const message = `Error loading ${provider} setup data. Please try again.`;
+        setError(message);
         console.error(`Error loading ${provider} setup data:`, err);
+        toast.error(message);
       }
-    }
-  }
-
-  async function connectProvider(provider: Integration["provider"]) {
-    setError(null);
-    try {
-      if (provider === "google-calendar") {
-        await linkSocial({
-          provider: "google",
-          scopes: [
-            "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/calendar.events.readonly",
-          ],
-          callbackURL: "/api/calendar/connect-callback",
-        });
-        return;
-      }
-      window.location.href =
-        provider === "slack"
-          ? `/api/slack/install?return=integrations`
-          : `/api/integrations/${provider}/auth`;
-    } catch (err: unknown) {
-      setError(`Failed to connect ${provider}. Please try again.`);
-      console.error(`Error connecting ${provider}:`, err);
-    }
-  }
-
-  async function disconnectProvider(provider: Integration["provider"]) {
-    setError(null);
-
-    try {
-      const disconnectUrl =
-        provider === "google-calendar"
-          ? "/api/auth/google/disconnect"
-          : `/api/integrations/${provider}/disconnect`;
-
-      const response = await fetch(disconnectUrl, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to disconnect ${provider}`);
-      }
-
-      setIntegrations((prevState: Integration[]) => {
-        return prevState.map((integration: Integration) => {
-          if (integration.provider === provider) {
-            return { ...integration, connected: false };
-          }
-          return integration;
-        });
-      });
-
-      await loadIntegrations();
-    } catch (err: unknown) {
-      setError(`Error disconnecting ${provider}. Please try again.`);
-      console.error("Error disconnecting:", err);
-    }
-  }
-
-  async function submitSetup(
-    provider: Integration["provider"],
-    config: unknown
-  ) {
-    setIsSetupLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/integrations/${provider}/setup`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(config),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save ${provider} setup`);
-      }
-
-      setSetupProvider(null);
-      setSetupData(null);
-      window.history.replaceState({}, "", "/integrations");
-      await loadIntegrations();
-    } catch (err: unknown) {
-      setError(`Error saving ${provider} setup. Please try again.`);
-      console.error("Error saving setup:", err);
     } finally {
       setIsSetupLoading(false);
     }
-  }
+  }, []);
+
+  const connectProvider = useCallback(
+    async (provider: Integration["provider"]) => {
+      setError(null);
+
+      try {
+        if (provider === "google-calendar") {
+          await linkSocial({
+            provider: "google",
+            scopes: [...GOOGLE_CALENDAR_SCOPES],
+            callbackURL: "/api/calendar/connect-callback",
+          });
+          return;
+        }
+
+        const redirectUrl =
+          provider === "slack"
+            ? "/api/slack/install?return=integrations"
+            : `/api/integrations/${provider}/auth`;
+
+        window.location.href = redirectUrl;
+      } catch (err) {
+        const message = `Failed to connect ${provider}. Please try again.`;
+        setError(message);
+        console.error(`Error connecting ${provider}:`, err);
+        toast.error(message);
+      }
+    },
+    []
+  );
+
+  const disconnectProvider = useCallback(
+    async (provider: Integration["provider"]) => {
+      setError(null);
+
+      try {
+        setDisconnectedProviders((prev) => new Set(prev).add(provider));
+
+        const disconnectUrl =
+          provider === "google-calendar"
+            ? "/api/auth/google/disconnect"
+            : `/api/integrations/${provider}/disconnect`;
+
+        const response = await fetch(disconnectUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to disconnect ${provider}`);
+        }
+
+        toast.success(`${provider} disconnected successfully`);
+
+        window.location.reload();
+      } catch (err) {
+        setDisconnectedProviders((prev) => {
+          const next = new Set(prev);
+          next.delete(provider);
+          return next;
+        });
+
+        const message = `Error disconnecting ${provider}. Please try again.`;
+        setError(message);
+        console.error("Error disconnecting:", err);
+        toast.error(message);
+      }
+    },
+    []
+  );
+
+  const submitSetup = useCallback(
+    async (provider: Integration["provider"], config: unknown) => {
+      setIsSetupLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/integrations/${provider}/setup`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(config),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || `Failed to save ${provider} setup`
+          );
+        }
+
+        setSetupProvider(null);
+        setSetupData(null);
+        setIsModalOpen(false);
+
+        window.history.replaceState({}, "", "/integrations");
+
+        toast.success(`${provider} setup completed successfully`);
+
+        window.location.reload();
+      } catch (err) {
+        const message = `Error saving ${provider} setup. Please try again.`;
+        setError(message);
+        console.error("Error saving setup:", err);
+        toast.error(message);
+      } finally {
+        setIsSetupLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const setup = urlParams.get("setup");
+
+    if (setup && isSetupProvider(setup)) {
+      setSetupProvider(setup);
+      setIsModalOpen(true);
+      loadSetupData(setup);
+    }
+
+    return () => {
+      setupAbortController.current?.abort();
+    };
+  }, [currentUserId, loadSetupData]);
 
   return {
     integrations,
-    isLoading,
     setupProvider,
     setupData,
+    isSetupLoading,
+    isModalOpen,
+    error,
     setSetupData,
     setIsModalOpen,
-    isModalOpen,
-    isSetupLoading,
+    setSetupProvider,
     loadSetupData,
-    error,
-    loadIntegrations,
     connectProvider,
     disconnectProvider,
     submitSetup,
-    setSetupProvider,
   };
 }

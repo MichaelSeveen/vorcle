@@ -1,4 +1,4 @@
-import { Integration } from "@/config/types";
+import { UserIntegrationResult } from "@/config/types";
 import ActionItemRow from "./action-item-row";
 
 interface ActionItemsListProps {
@@ -6,8 +6,8 @@ interface ActionItemsListProps {
     id: number;
     text: string;
   }[];
-  integrations: Integration[];
-  loading: { [key: string]: boolean };
+  integrations: UserIntegrationResult[];
+  loading: boolean;
   addToIntegration: (
     provider: string,
     item: { id: number; text: string }
@@ -15,9 +15,9 @@ interface ActionItemsListProps {
   handleDeleteItem: (id: number) => void;
 }
 
-function ActionItemsList(props: ActionItemsListProps) {
+export default function ActionItemsList(props: ActionItemsListProps) {
   return (
-    <div className="space-y-4">
+    <ul className="space-y-2">
       {props.actionItems.map((item) => (
         <ActionItemRow
           key={item.id}
@@ -28,8 +28,6 @@ function ActionItemsList(props: ActionItemsListProps) {
           handleDeleteItem={props.handleDeleteItem}
         />
       ))}
-    </div>
+    </ul>
   );
 }
-
-export default ActionItemsList;

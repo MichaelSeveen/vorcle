@@ -48,40 +48,36 @@ export async function canUserSendBot(userId: string) {
 }
 
 export async function canUserChat(userId: string) {
-  const user = await prisma.user.findUnique({
+  const { success, data } = await getCurrentUserTokenUsage(userId);
+
+  if (!success || !data) {
+    return { allowed: false, reason: "Failed to get user data" };
+  }
+
+  const { effectivePlan, effectiveStatus, chatMessagesToday } = data;
+
+  const limits = PLAN_LIMITS[effectivePlan];
+  const isFree = effectivePlan === "FREE";
+  const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
+
+  const canChat =
+    (isFree || isActivePaid) &&
+    (limits.chatMessages === -1 || chatMessagesToday < limits.chatMessages);
+
+  if (!canChat) {
+    return {
+      allowed: false,
+      reason:
+        limits.chatMessages === -1
+          ? "Not allowed for your current plan"
+          : `Reached limit of ${limits.chatMessages} daily messages`,
+    };
+  }
+
+  await prisma.user.update({
     where: { id: userId },
+    data: { chatMessagesToday: { increment: 1 } },
   });
-
-  if (!user) {
-    return { allowed: false, reason: "User not found" };
-  }
-
-  const activeSubscription = await getUserActiveSubscription(userId);
-  const planName = (activeSubscription?.planName as SubscriptionPlan) || "FREE";
-  const status = activeSubscription?.status || "INACTIVE";
-
-  if (planName === "FREE" || status !== "ACTIVE") {
-    return {
-      allowed: false,
-      reason: "Upgrade your plan to chat with the AI bot",
-    };
-  }
-
-  const limits = PLAN_LIMITS[planName];
-
-  if (!limits) {
-    return { allowed: false, reason: "Invalid subscription plan" };
-  }
-
-  if (
-    limits.chatMessages !== -1 &&
-    user.chatMessagesToday >= limits.chatMessages
-  ) {
-    return {
-      allowed: false,
-      reason: `You've reached your daily limit of ${limits.chatMessages} messages`,
-    };
-  }
 
   return { allowed: true };
 }
@@ -90,13 +86,6 @@ export async function incrementMeetingUsage(userId: string) {
   await prisma.user.update({
     where: { id: userId },
     data: { meetingsThisMonth: { increment: 1 } },
-  });
-}
-
-export async function incrementChatUsage(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { chatMessagesToday: { increment: 1 } },
   });
 }
 
@@ -112,9 +101,7 @@ export async function incrementUserChatTokenUsage(userId: string) {
       };
     }
 
-    await incrementChatUsage(userId);
-
-    return { success: true };
+    return { success: chatCheck.allowed };
   } catch (error) {
     console.log(error);
     return { success: false, message: "Failed to increment your usage" };

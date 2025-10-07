@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useTransition, useOptimistic } from "react";
 import { SlackIcon } from "@/components/custom-icons";
 import { Button } from "@/components/ui/button";
 import { segments } from "@/config/segments";
@@ -29,40 +29,39 @@ export default function MeetingHeader({
   userData,
 }: MeetingHeaderProps) {
   const router = useRouter();
-  const [isPosting, setIsPosting] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, startDeleteTransition] = useTransition();
 
-  const handlePostToSlack = async () => {
-    if (!meetingId) {
-      return;
-    }
+  const [isPending, startTransition] = useTransition();
+  const [copied, setCopied] = useOptimistic<"idle" | "copied">("idle");
+  const [, startCopyTransition] = useTransition();
 
-    try {
-      setIsPosting(true);
+  const handlePostToSlack = () => {
+    if (!meetingId) return;
 
-      const response = await fetch("/api/slack/post-meeting", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          meetingId: meetingId,
-          summary: summary ?? "Meeting summary is not available",
-          actionItems: actionItems || "No action items recorded",
-        }),
-      });
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/slack/post-meeting", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            meetingId,
+            summary: summary ?? "Meeting summary is not available",
+            actionItems: actionItems || "No action items recorded",
+          }),
+        });
 
-      // const result = await response.json();
-
-      if (response.ok) {
-        toast.success("Posted to Slack");
+        if (response.ok) {
+          toast.success("Posted to Slack");
+        } else {
+          toast.error("Failed to post to Slack");
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Error posting to Slack");
       }
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setIsPosting(false);
-    }
+    });
   };
 
   const handleShare = async () => {
@@ -70,77 +69,78 @@ export default function MeetingHeader({
       return;
     }
 
-    try {
-      const shareUrl = `${window.location.origin}/meeting/${meetingId}`;
-      await navigator.clipboard.writeText(shareUrl);
+    startCopyTransition(async () => {
+      try {
+        const shareUrl = `${window.location.origin}/meeting/${meetingId}`;
+        navigator.clipboard.writeText(shareUrl);
 
-      setCopied(true);
-      toast.success("Meeting link copied!");
+        setCopied("copied");
+        toast.success("Meeting link copied!");
 
-      setTimeout(() => setCopied(false), 1000);
-    } catch (error) {
-      console.error("failed to copy:", error);
-    }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setCopied("idle");
+      } catch (error) {
+        console.error("Failed to copy:", error);
+      }
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!meetingId) {
       return;
     }
 
-    try {
-      setIsDeleting(true);
+    startDeleteTransition(async () => {
+      try {
+        const { success, error, message } = await removeMeetingById(meetingId);
 
-      const { success, error, message } = await removeMeetingById(meetingId);
+        if (error) {
+          toast.error(error);
+          return;
+        }
 
-      if (error) {
-        toast.error(error);
-        setIsDeleting(false);
+        if (success) {
+          toast.success(message);
+          router.push(segments.workspace.home);
+        }
+      } catch (error) {
+        console.error("Could not delete meeting", error);
       }
-
-      if (success) {
-        toast.success(message);
-        router.push(segments.workspace.home);
-      }
-    } catch (error) {
-      console.error("Could not delete meeting", error);
-    } finally {
-      setIsDeleting(false);
-    }
+    });
   };
 
   return (
-    <div className="flex justify-between border-b">
+    <div className="flex flex-col md:flex-row gap-3 border-b pb-3">
       <MeetingInfo meetingData={meetingInfoData} userData={userData} />
 
       {isLoading ? (
         <div className="flex items-center gap-1 text-sm">
-          <Loader className="animate-spin size-4" />
+          <Loader className="animate-spin size-3.5" />
           Loading...
         </div>
       ) : isOwner ? (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 md:ml-auto md:self-end">
           <Button
             onClick={handlePostToSlack}
-            disabled={isPosting || !meetingId}
-            variant="fancy"
+            disabled={isPending || !meetingId}
+            variant="secondary"
             size="sm"
             className="cursor-pointer disabled:cursor-not-allowed"
           >
             <SlackIcon />
-            {isPosting ? "Posting..." : "Post to Slack"}
+            {isPending ? "Posting..." : "Post to Slack"}
           </Button>
 
           <Button onClick={handleShare} variant="outline" size="sm">
-            {copied ? (
+            {copied === "idle" ? (
               <>
-                <Check className="h-4 w-4" />
-                Copied!
+                <Share2 />
+                Share
               </>
             ) : (
               <>
-                <Share2 className="h-4 w-4" />
-                Share
+                <Check />
+                Copied!
               </>
             )}
           </Button>
@@ -156,24 +156,11 @@ export default function MeetingHeader({
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-sm">
-          <Eye className="size-4" />
+        <div className="flex items-center gap-2 text-sm md:ml-auto">
+          <Eye className="size-3.5" />
           Viewing shared meeting.
         </div>
       )}
     </div>
   );
 }
-
-//  const response = await fetch(`/api/meetings/${meetingId}`, {
-//         method: "DELETE",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//       });
-//       const result = await response.json();
-
-//       if (response.ok) {
-//         router.push(segments.workspace.home);
-//       } else {
-//       }

@@ -41,7 +41,7 @@ export async function chatWithAI({
   messages: ModelMessage[];
 }): Promise<string> {
   const { text } = await generateText({
-    model: google(chatModel),
+    model: google("gemini-2.5-pro"),
     system: system,
     messages: messages,
     temperature: 0.3,

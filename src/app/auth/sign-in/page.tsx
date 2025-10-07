@@ -1,67 +1,82 @@
-"use client";
-
-import { Button } from "@/components/ui/button";
-import { segments } from "@/config/segments";
-import { signIn } from "@/lib/auth-client";
 import Link from "next/link";
 
-export default function SignInPage() {
-  async function handleUserSignIn() {
-    await signIn.social({
-      provider: "google",
-      callbackURL: segments.workspace.home,
-    });
+import { VorcleLogo } from "@/components/custom-icons/brand-logo";
+import SignInButton from "./_components/sign-in-button";
+
+import { segments } from "@/config/segments";
+import { getCurrentUser } from "@/helpers/user";
+import { redirect } from "next/navigation";
+
+export default async function SignInPage() {
+  const currentUser = await getCurrentUser();
+
+  if (currentUser) {
+    redirect(segments.workspace.home);
   }
 
   return (
-    <section className="flex min-h-screen px-4 py-16 md:py-32 bg-background">
-      <div className="max-w-92 m-auto h-fit w-full">
-        <div className="p-6">
-          <div>
-            <Link href={segments.home} aria-label="go home">
-              Logo
-            </Link>
-            <h1 className="mt-6 text-balance text-xl font-semibold">
-              <span className="text-muted-foreground">
-                Welcome back to Vorcle
-              </span>{" "}
-              Sign in to continue
-            </h1>
+    <section className="px-6 lg:px-15 h-svh">
+      <div className="border-x-0 lg:border-x h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-6 items-start h-full">
+          {/* First Part */}
+          <div className="relative border-r-0 lg:border-r h-full">
+            <div className="absolute top-0 border-b w-full h-10 flex items-center">
+              <Link href={segments.home}>
+                <VorcleLogo className="size-5 lg:ml-2" />
+              </Link>
+            </div>
+            <div className="absolute bottom-0 h-10 border-t w-full flex items-center">
+              <p className="text-xs text-muted-foreground lg:ml-2">
+                By signing up, you agree to Vorcle&apos;s{" "}
+                <strong className="underline text-blue-600 dark:text-blue-500">
+                  Terms of service
+                </strong>{" "}
+                and{" "}
+                <strong className="underline text-blue-600 dark:text-blue-500">
+                  Privacy Policy
+                </strong>
+              </p>
+            </div>
+            <div className="hidden lg:block absolute right-8 w-[0.5px] bg-border h-full z-[5]" />
+            <div className="h-full lg:h-[calc(100%-5rem)] lg:w-[calc(100%-2rem)] grid place-content-center">
+              <h1 className="text-pretty text-xl md:text-2xl lg:text-3xl font-semibold mt-6 mb-1 text-center">
+                Welcome back to{" "}
+                <span className="text-deep-saffron">Vorcle</span>
+              </h1>
+              <p className="text-muted-foreground text-center">
+                Sign in to continue
+              </p>
+              <SignInButton />
+            </div>
           </div>
+          {/* Second Part */}
+          <div className="hidden relative lg:block border-l h-full">
+            <div className="absolute top-0 border-b w-full h-10" />
 
-          <div className="mt-6 space-y-2">
-            <Button
-              onClick={handleUserSignIn}
-              variant="fancy"
-              className="w-full"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="size-4"
-                viewBox="0 0 256 262"
-              >
-                <path
-                  fill="#4285f4"
-                  d="M255.878 133.451c0-10.734-.871-18.567-2.756-26.69H130.55v48.448h71.947c-1.45 12.04-9.283 30.172-26.69 42.356l-.244 1.622l38.755 30.023l2.685.268c24.659-22.774 38.875-56.282 38.875-96.027"
-                ></path>
-                <path
-                  fill="#34a853"
-                  d="M130.55 261.1c35.248 0 64.839-11.605 86.453-31.622l-41.196-31.913c-11.024 7.688-25.82 13.055-45.257 13.055c-34.523 0-63.824-22.773-74.269-54.25l-1.531.13l-40.298 31.187l-.527 1.465C35.393 231.798 79.49 261.1 130.55 261.1"
-                ></path>
-                <path
-                  fill="#fbbc05"
-                  d="M56.281 156.37c-2.756-8.123-4.351-16.827-4.351-25.82c0-8.994 1.595-17.697 4.206-25.82l-.073-1.73L15.26 71.312l-1.335.635C5.077 89.644 0 109.517 0 130.55s5.077 40.905 13.925 58.602z"
-                ></path>
-                <path
-                  fill="#eb4335"
-                  d="M130.55 50.479c24.514 0 41.05 10.589 50.479 19.438l36.844-35.974C195.245 12.91 165.798 0 130.55 0C79.49 0 35.393 29.301 13.925 71.947l42.211 32.783c10.59-31.477 39.891-54.251 74.414-54.251"
-                ></path>
-              </svg>
-              <span>Google</span>
-            </Button>
+            <div className="absolute bottom-0 h-10 border-t w-full" />
+
+            <div className="absolute left-8 w-[0.5px] bg-border h-full z-[5]" />
+            <div className="h-[calc(100%-5rem)] w-[calc(100%-5rem)] grid place-content-center">
+              <CardLogo />
+            </div>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function CardLogo() {
+  return (
+    <>
+      <div className="flex gap-0.5">
+        <span className="size-[12rem] rounded-full bg-accent" />
+        <span className="size-[12rem] rounded-full bg-muted" />
+      </div>
+      <div className="flex gap-0.5 mt-0.5">
+        <span className="size-[12rem] rounded-full bg-accent" />
+        <span className="size-[8rem] rounded-full bg-accent" />
+      </div>
+    </>
   );
 }

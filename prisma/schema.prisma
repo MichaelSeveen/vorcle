@@ -1,6 +1,5 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider  = "prisma-client-js"
 }
 
 datasource db {
@@ -32,6 +31,7 @@ model User {
   accounts             Account[]
   sessions             Session[]
   subscriptions        Subscription?
+  events               Event[]
 
   @@map("user")
 }
@@ -40,60 +40,28 @@ model Subscription {
   id                  String             @id @default(cuid()) @map("_id")
   status              SubscriptionStatus @default(INACTIVE)
   planName            String             @default("FREE")
-  polarId             String?            @unique
+  productId           String             @unique          
   customerId          String?
-  externalUserId      String?
-  productId           String?
-  priceId             String?
+  checkoutId          String?
+  endsAt              DateTime?
+  endedAt             DateTime?
   amount              Int?
   currency            String?
+  modifiedAt          DateTime?
+  startedAt           DateTime?
   cancelAtPeriodEnd   Boolean?           @default(false)
   currentPeriodStart  DateTime?
   currentPeriodEnd    DateTime?
+  recurringInterval   String?
   gracePeriodEndsAt   DateTime?
   userId              String             @unique
   user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   canceledAt          DateTime?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
-  checkouts           Checkout[]
 
   @@map("subscription")
 } 
-
-model Checkout {
-  id             String        @id @default(cuid()) @map("_id")
-  polarId        String        @unique
-  userId         String?
-  customerId     String?
-  status         String
-  productId      String
-  productName    String?
-  amount         Int?
-  currency       String?
-  successUrl     String?
-  url            String?
-  expiresAt      DateTime?
-  subscriptionId String?
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [polarId])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  @@map("checkout")
-}
-
-model WebhookEvent {
-  id        String   @id @default(cuid()) @map("_id")
-  eventType String
-  polarId   String?
-  processed Boolean  @default(false)
-  payload   Json? 
-  error     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("webhook_event")
-}
 
 model SlackInstallation {
   id            String   @id @default(cuid()) @map("_id")
@@ -178,6 +146,24 @@ model TranscriptChunk {
   @@map("transcript_chunk")
 }
 
+model Event {
+  id          String   @id @default(cuid()) @map("_id")
+  title       String
+  description String?
+  location    String?
+  meetingLink String?
+  color       String   @default("blue")
+  startDate   DateTime
+  endDate     DateTime
+  attendees   Json?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("event")
+}
+
 model Account {
   id                    String    @id @default(cuid()) @map("_id")
   userId                String
@@ -239,3 +225,4 @@ enum SubscriptionStatus {
   CANCELED
   UNPAID
 }
+

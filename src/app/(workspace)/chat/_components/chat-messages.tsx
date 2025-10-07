@@ -1,3 +1,8 @@
+import { VorcleLogo } from "@/components/custom-icons/brand-logo";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+
 interface Message {
   id: number;
   content: string;
@@ -15,33 +20,49 @@ export default function ChatMessages({
   isLoading,
 }: ChatMessagesProps) {
   return (
-    <div className="space-y-4">
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`flex ${message.isBot ? "justify-start" : "justify-end"}`}
-        >
+    <ScrollArea className="p-3 h-[40rem] w-full mx-auto max-w-4xl">
+      <div className="flex flex-col">
+        {messages.map((message) => (
           <div
-            className={`max-w-[70%] rounded-lg p-4 ${
-              message.isBot
-                ? "bg-card border border-border text-foreground"
-                : "bg-primary text-primary-foreground"
-            }`}
+            key={message.id}
+            className={cn(
+              "flex items-center gap-1 mb-2",
+              message.isBot ? "justify-start" : "justify-end"
+            )}
           >
-            <p className="text-sm leading-relaxed">{message.content}</p>
+            <div
+              className={cn(
+                "items-center justify-center size-8 ring ring-accent rounded-full ml-1",
+                message.isBot ? "flex" : "hidden"
+              )}
+            >
+              <VorcleLogo className="size-5" />
+            </div>
+            <div
+              className={cn(
+                "max-w-[55%] rounded-md p-2",
+                message.isBot
+                  ? "bg-muted text-foreground"
+                  : "bg-primary text-primary-foreground"
+              )}
+            >
+              <p className="text-sm text-pretty">{message.content}</p>
+            </div>
           </div>
-        </div>
-      ))}
-
-      {isLoading && (
-        <div className="flex justify-start">
-          <div className="bg-card border border-border rounded-lg p-4">
+        ))}
+        {isLoading && (
+          <div
+            className="flex items-center justify-start gap-2 mb-2"
+            aria-live="polite"
+            aria-label="Assistant is typing"
+          >
+            <Loader2 className="size-5 animate-spin" />
             <p className="text-sm text-muted-foreground">
-              🤖 Searching through all your meetings...
+              Searching through your meetings...
             </p>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </ScrollArea>
   );
 }

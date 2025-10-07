@@ -17,7 +17,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { segments } from "@/config/segments";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarRoot, AvatarImage } from "@/components/align-ui/avatar";
 
 export default function UserProfileMenu() {
   const router = useRouter();
@@ -51,11 +51,17 @@ export default function UserProfileMenu() {
         >
           {isPending ? (
             <Loader2 className="animate-spin" />
+          ) : !!avatar ? (
+            <AvatarRoot className="rounded-md" size="32">
+              <AvatarImage
+                src={avatar}
+                alt={`The profile image of ${session?.user.name}`}
+              />
+            </AvatarRoot>
           ) : (
-            <Avatar className="rounded-md">
-              <AvatarImage src={avatar} alt={session?.user?.name} />
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
+            <AvatarRoot size="32" className="rounded-md" color="blue">
+              {initials}
+            </AvatarRoot>
           )}
         </Button>
       </DropdownMenuTrigger>

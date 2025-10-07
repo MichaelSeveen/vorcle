@@ -34,7 +34,7 @@ export default function AdminDashboardLayout({
               <UserProfileDropdown />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <main className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
             {children}
           </main>
         </SidebarInset>

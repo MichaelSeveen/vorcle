@@ -100,8 +100,6 @@ export async function POST(request: NextRequest) {
           //     console.error('failed to send the email:', emailError)
           // }
 
-          // zip -r lambda-scheduler-updated.zip . -x "node_modules/.prisma/client/libquery_engine-darwin*" "*.git*" "deploy-*" "*.md"
-
           await processTranscript(
             meeting.id,
             meeting.userId,

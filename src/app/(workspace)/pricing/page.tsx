@@ -16,13 +16,13 @@ export default async function WorkspacePricingPage() {
   const activeSubscription = await hasActiveSubscription(currentUser.id);
 
   return (
-    <div className="mx-auto max-w-5xl min-h-svh w-full">
-      <h1 className="text-3xl font-semibold tracking-tight text-center mt-16">
-        Make Every Meeting Matter
+    <div className="flex flex-col mx-auto max-w-6xl w-full">
+      <h1 className="text-2xl lg:text-4xl font-semibold tracking-tight text-center mt-16 text-pretty">
+        Make Every <span className="text-deep-saffron">Meeting</span> Matter
       </h1>
-      <h2 className="text-lg text-pretty tracking-tight text-center">
-        Flexible plans that fit your team&apos;s needs. Upgrade to get unlimited
-        transcripts and summaries
+      <h2 className="text-base text-pretty tracking-tight text-center text-muted-foreground">
+        Summaries, action items, and valuable insights for every meeting. Never
+        miss important details again.
       </h2>
 
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">

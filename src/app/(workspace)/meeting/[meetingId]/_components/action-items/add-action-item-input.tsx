@@ -1,22 +1,22 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 
 interface AddActionItemInputProps {
-  showAddInput: boolean;
-  setShowAddInput: (show: boolean) => void;
-  newItemText: string;
-  setNewItemText: (text: string) => void;
-  onAddItem: () => void;
+  onAddItem: (text: string) => Promise<void>;
+  isPending: boolean;
 }
 
-function AddActionItemInput({
-  showAddInput,
-  setShowAddInput,
-  newItemText,
-  setNewItemText,
+export default function AddActionItemInput({
   onAddItem,
+  isPending,
 }: AddActionItemInputProps) {
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [newItemText, setNewItemText] = useState("");
+
   if (showAddInput) {
     return (
       <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
@@ -28,7 +28,7 @@ function AddActionItemInput({
           className="flex-1"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              onAddItem();
+              onAddItem(newItemText);
             }
             if (e.key === "Escape") {
               setShowAddInput(false);
@@ -36,8 +36,13 @@ function AddActionItemInput({
             }
           }}
           autoFocus
+          disabled={isPending}
         />
-        <Button onClick={onAddItem} disabled={!newItemText.trim()} size="sm">
+        <Button
+          onClick={() => onAddItem(newItemText)}
+          disabled={!newItemText.trim() || isPending}
+          size="sm"
+        >
           Add
         </Button>
         <Button
@@ -54,11 +59,15 @@ function AddActionItemInput({
     );
   }
   return (
-    <Button variant="outline" size="sm" onClick={() => setShowAddInput(true)}>
+    <Button
+      variant="outline"
+      size="sm"
+      className="mt-3"
+      disabled={isPending}
+      onClick={() => setShowAddInput(true)}
+    >
       <Plus />
-      <span>Add Action Item</span>
+      Add Action Item
     </Button>
   );
 }
-
-export default AddActionItemInput;
