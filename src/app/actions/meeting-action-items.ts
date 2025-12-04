@@ -3,7 +3,7 @@
 import { ActionItem } from "@/config/types";
 import { getCurrentUser } from "@/helpers/user";
 import prisma from "@/lib/prisma";
-import { InputJsonArray } from "@prisma/client/runtime/library";
+import type { InputJsonArray } from "@prisma/client/runtime/client";
 
 export async function createActionItem(meetingId: string, itemText: string) {
   try {
