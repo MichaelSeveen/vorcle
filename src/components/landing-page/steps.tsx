@@ -93,7 +93,6 @@ export default function StepsSection() {
               src="/images/landing-calendar.webp"
               width="1900"
               height="951"
-              priority
               className="relative"
             />
           </div>
