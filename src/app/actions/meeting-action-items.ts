@@ -3,7 +3,7 @@
 import { ActionItem } from "@/config/types";
 import { getCurrentUser } from "@/helpers/user";
 import prisma from "@/lib/prisma";
-import type { InputJsonArray } from "@prisma/client/runtime/client";
+import type { InputJsonValue } from "@prisma/client/runtime/client";
 
 export async function createActionItem(meetingId: string, itemText: string) {
   try {
@@ -55,7 +55,7 @@ export async function createActionItem(meetingId: string, itemText: string) {
         id: meetingId,
       },
       data: {
-        actionItems: updatedActionItems as unknown as InputJsonArray,
+        actionItems: updatedActionItems as unknown as InputJsonValue,
       },
     });
 
@@ -90,7 +90,7 @@ export async function removeActionItem(meetingId: string, itemId: number) {
         id: meetingId,
       },
       data: {
-        actionItems: updatedActionItems as unknown as InputJsonArray,
+        actionItems: updatedActionItems as unknown as InputJsonValue,
       },
     });
 

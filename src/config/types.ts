@@ -1,5 +1,6 @@
 import type { Meeting, SubscriptionPlan } from "@prisma/client";
-import { JsonValue } from "@prisma/client/runtime/library";
+import type { JsonValue } from "@prisma/client/runtime/client";
+
 import { JSX } from "react";
 
 export interface PlanLimits {

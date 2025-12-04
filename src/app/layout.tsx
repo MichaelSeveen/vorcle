@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://vorcle.vercel.app"),
   title: {
     default:
       "Vorcle | Summarize, Transcribe, Gain Smart Insights into Meetings",
@@ -36,6 +37,11 @@ export const metadata: Metadata = {
   ],
   twitter: {
     card: "summary_large_image",
+    title: "Vorcle | Summarize, Transcribe, Gain Smart Insights into Meetings",
+    description:
+      "Transcripts, instant summaries, and searchable meeting history — plus calendar sync and reminders to keep your team moving.",
+    site: "@Vorcle",
+    creator: "@Vorcle",
   },
 };
 
