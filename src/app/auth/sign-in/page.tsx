@@ -14,7 +14,7 @@ export default async function SignInPage() {
 	}
 
 	return (
-		<section className="px-6 lg:px-15 h-svh bg-white-chalk text-black">
+		<section className="px-6 lg:px-15 h-svh">
 			<div className="border-x-0 lg:border-x h-full">
 				<div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-6 items-start h-full">
 					{/* First Part */}
