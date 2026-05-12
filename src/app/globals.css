@@ -85,7 +85,7 @@
 	--accent: oklch(77.18% 0.13 240.07);
 	--accent-foreground: oklch(15% 0.026 240.07);
 	--background: oklch(12.00% 0.0015 240.07);
-	/* --border: oklch(28.00% 0.0015 240.07); */
+	--border: oklch(28.00% 0.0015 240.07);
 	--danger: oklch(59.40% 0.1973 22.98);
 	--danger-foreground: oklch(99.11% 0 0);
 	--default: oklch(27.40% 0.0015 240.07);

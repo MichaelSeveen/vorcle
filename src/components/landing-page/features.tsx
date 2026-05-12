@@ -77,7 +77,7 @@ export default function FeaturesSection() {
 										</h3>
 									</CardDecorator>
 								</div>
-								<div className="mt-auto border-t pt-3 flex gap-3">
+								<div className="mt-auto border-t border-ring pt-3 flex gap-3">
 									<div className="h-10 w-1.5 bg-[#1B6F81]" />
 									<p className="text-sm text-white text-pretty max-w-sm w-full">
 										{description}
