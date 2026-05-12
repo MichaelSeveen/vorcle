@@ -1,60 +1,60 @@
 "use client";
 
+import { AlertDialog, Button } from "@heroui/react";
+import { Delete02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useCalendar } from "../context/calendar-context";
-import { TrashIcon } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
-export default function RemoveEventDialog({ eventId }: { eventId: string }) {
-  const { removeEvent } = useCalendar();
+export default function RemoveEventDialog({
+	eventId,
+	label = "Delete",
+}: {
+	eventId: string;
+	label?: string;
+}) {
+	const { removeEvent } = useCalendar();
 
-  if (!eventId) {
-    return null;
-  }
+	if (!eventId) {
+		return null;
+	}
 
-  const handleRemoveEvent = async () => {
-    try {
-      await removeEvent(eventId);
-      toast.success("Event deleted successfully.");
-    } catch {
-      toast.error("Error deleting event.");
-    }
-  };
+	const handleRemoveEvent = async () => {
+		await removeEvent(eventId);
+	};
 
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive">
-          <TrashIcon />
-          Delete
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the
-            event.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleRemoveEvent}>
-            Continue
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
+	return (
+		<AlertDialog>
+			<Button variant="danger">
+				<HugeiconsIcon icon={Delete02Icon} />
+				{label}
+			</Button>
+			<AlertDialog.Backdrop>
+				<AlertDialog.Container>
+					<AlertDialog.Dialog className="sm:max-w-[425px]">
+						<AlertDialog.CloseTrigger />
+						<AlertDialog.Header>
+							<AlertDialog.Icon status="danger" />
+							<AlertDialog.Heading>
+								Are you absolutely sure?
+							</AlertDialog.Heading>
+						</AlertDialog.Header>
+						<AlertDialog.Body>
+							<p>
+								This action cannot be undone. This will permanently delete the
+								event.
+							</p>
+						</AlertDialog.Body>
+						<AlertDialog.Footer>
+							<Button slot="close" variant="tertiary">
+								Cancel
+							</Button>
+							<Button variant="danger" onPress={handleRemoveEvent}>
+								Delete event
+							</Button>
+						</AlertDialog.Footer>
+					</AlertDialog.Dialog>
+				</AlertDialog.Container>
+			</AlertDialog.Backdrop>
+		</AlertDialog>
+	);
 }

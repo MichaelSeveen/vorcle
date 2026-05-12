@@ -1,63 +1,34 @@
-import {
-  Event,
-  EventColor,
-  User,
-} from "@/components/event-calendar/config/types";
-import prisma from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import type { Event, User } from "@/components/event-calendar/config/types";
+import { db } from "@/db";
+import { user } from "@/db/schema";
+import { getStoredCalendarEvents } from "./feed";
 
-export async function getCalendarEvents(): Promise<Event[]> {
-  const events = await prisma.event.findMany({
-    include: {
-      user: true,
-    },
-  });
-
-  return events.map((event) => {
-    const attendees = (event.attendees as unknown as User[]) ?? [];
-
-    return {
-      ...event,
-      startDate: event.startDate.toISOString(),
-      endDate: event.endDate.toISOString(),
-      color: event.color as EventColor,
-      description: event.description || "",
-      attendees,
-      user: {
-        id: event.user.id,
-        name: event.user.name,
-        picturePath:
-          `https://tapback.co/api/avatar/${event.user.name}.webp` || null,
-      },
-    };
-  });
+export async function getCalendarEvents(userId: string): Promise<Event[]> {
+	return getStoredCalendarEvents(userId);
 }
 
-export async function getEventUsers(): Promise<User[]> {
-  const events = await prisma.event.findMany({
-    include: { user: true },
-  });
+export async function getEventUsers(userId: string): Promise<User[]> {
+	const [userRow] = await db
+		.select({
+			id: user.id,
+			name: user.name,
+			image: user.image,
+		})
+		.from(user)
+		.where(eq(user.id, userId))
+		.limit(1);
 
-  const allUsers: User[] = events.flatMap((event) => {
-    const attendees =
-      (event.attendees as {
-        id: string;
-        name: string;
-        picturePath: string | null;
-      }[]) ?? [];
+	if (!userRow) {
+		return [];
+	}
 
-    const creator: User = {
-      id: event.user.id,
-      name: event.user.name,
-      picturePath:
-        `https://tapback.co/api/avatar/${event.user.name}.webp` || null,
-    };
-
-    return [...attendees, creator];
-  });
-
-  const uniqueUsers = Array.from(
-    new Map(allUsers.map((u) => [u.id, u])).values()
-  );
-
-  return uniqueUsers;
+	return [
+		{
+			id: userRow.id,
+			name: userRow.name,
+			picturePath:
+				userRow.image || `https://tapback.co/api/avatar/${userRow.name}.webp`,
+		},
+	];
 }

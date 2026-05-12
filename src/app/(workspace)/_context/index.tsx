@@ -1,213 +1,176 @@
 "use client";
 
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
 import { useRouter } from "next/navigation";
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 import { toast } from "sonner";
-import { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 import { segments } from "@/config/segments";
-import { PLAN_LIMITS, PlanLimits } from "@/config/types";
+import { PLAN_LIMITS, type PlanLimits } from "@/config/types";
+import type { SubscriptionPlan, SubscriptionStatus } from "@/db/schema";
 import { getClientSession } from "@/lib/get-client-session";
 
-async function fetchTokenUsage() {
-  const response = await fetch("/api/user/token-usage");
-  if (!response.ok) throw new Error("Failed to fetch token usage");
-  return response.json();
+async function fetchTokenUsage(): Promise<{
+	success: boolean;
+	data?: UsageApiData;
+	message?: string;
+}> {
+	const response = await fetch("/api/user/token-usage");
+	if (!response.ok)
+		throw new Error(`Token usage fetch failed: ${response.status}`);
+	return response.json();
 }
 
-async function incrementChat() {
-  const response = await fetch("/api/user/increment-chat", {
-    method: "POST",
-    headers: { "Content-type": "application/json" },
-  });
-  return response.json();
-}
-
-async function incrementMeeting() {
-  const response = await fetch("/api/user/increment-meeting", {
-    method: "POST",
-    headers: { "Content-type": "application/json" },
-  });
-  return response.json();
-}
-
-interface UsageDataSubscription {
-  id: string;
-  planName: SubscriptionPlan;
-  status: SubscriptionStatus;
-  nextPaymentDate: Date | null;
-}
-
-interface UsageData {
-  id: string;
-  effectivePlan: SubscriptionPlan;
-  effectiveStatus: SubscriptionStatus;
-  meetingsThisMonth: number;
-  chatMessagesToday: number;
-  subscription: UsageDataSubscription | null;
+interface UsageApiData {
+	id: string;
+	effectivePlan: SubscriptionPlan;
+	effectiveStatus: SubscriptionStatus;
+	meetingsUsed: number;
+	chatMessagesUsed: number;
+	usagePeriodStart: string | null;
+	usagePeriodEnd: string | null;
+	nextResetDate: string | null;
+	nextPaymentDate: string | null;
+	cycleAnchor: "billing_cycle" | "calendar_month";
 }
 
 interface UsageContextType {
-  usage: UsageData | null;
-  loading: boolean;
-  canChat: boolean;
-  canScheduleMeeting: boolean;
-  limits: PlanLimits;
-  incrementChatUsage: () => Promise<void>;
-  incrementMeetingUsage: () => Promise<void>;
+	usage: UsageApiData | null;
+	loading: boolean;
+	canChat: boolean;
+	canScheduleMeeting: boolean;
+	limits: PlanLimits;
+	incrementChatUsage: () => Promise<void>;
+	incrementMeetingUsage: () => Promise<void>;
+	refreshUsage: () => Promise<void>;
 }
 
 const TokenUsageContext = createContext<UsageContextType | undefined>(
-  undefined
+	undefined,
 );
 
 export function useTokenUsage() {
-  const context = useContext(TokenUsageContext);
-  if (context === undefined) {
-    throw new Error("useTokenUsage must be used within a TokenUsageProvider");
-  }
-  return context;
+	const context = useContext(TokenUsageContext);
+	if (context === undefined) {
+		throw new Error("useTokenUsage must be used within a TokenUsageProvider");
+	}
+	return context;
 }
 
 export function TokenUsageProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
+	const router = useRouter();
+	const [usage, setUsage] = useState<UsageApiData | null>(null);
+	const [loading, setLoading] = useState(true);
 
-  const [usage, setUsage] = useState<UsageData | null>(null);
-  const [loading, setLoading] = useState(true);
+	const effectivePlan = usage?.effectivePlan ?? "FREE";
+	const effectiveStatus = usage?.effectiveStatus ?? "INACTIVE";
+	const limits = PLAN_LIMITS[effectivePlan] ?? PLAN_LIMITS.FREE;
 
-  const effectivePlan = usage?.effectivePlan || "FREE";
-  const effectiveStatus = usage?.effectiveStatus || "INACTIVE";
+	const isFree = effectivePlan === "FREE";
+	const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
 
-  const limits = PLAN_LIMITS[effectivePlan];
+	const chatMessagesUsed = usage?.chatMessagesUsed ?? 0;
+	const meetingsUsed = usage?.meetingsUsed ?? 0;
 
-  const isFree = effectivePlan === "FREE";
-  const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
+	const canChat = useMemo(
+		() =>
+			(isFree || isActivePaid) &&
+			(limits.chatMessages === -1 || chatMessagesUsed < limits.chatMessages),
+		[isFree, isActivePaid, limits.chatMessages, chatMessagesUsed],
+	);
 
-  const chatMessagesToday = usage?.chatMessagesToday ?? 0;
-  const meetingsThisMonth = usage?.meetingsThisMonth ?? 0;
+	const canScheduleMeeting = useMemo(
+		() =>
+			(isFree || isActivePaid) &&
+			(limits.meetings === -1 || meetingsUsed < limits.meetings),
+		[isFree, isActivePaid, limits.meetings, meetingsUsed],
+	);
 
-  const canChat =
-    (isFree || isActivePaid) &&
-    (limits.chatMessages === -1 || chatMessagesToday < limits.chatMessages);
+	const refreshUsage = useCallback(async () => {
+		try {
+			const { success, data } = await fetchTokenUsage();
+			if (success && data) {
+				setUsage(data);
+			}
+		} catch (error) {
+			console.error("Failed to load usage data:", error);
+			toast.error("Failed to load usage data");
+		} finally {
+			setLoading(false);
+		}
+	}, []);
 
-  const canScheduleMeeting =
-    (isFree || isActivePaid) &&
-    (limits.meetings === -1 || meetingsThisMonth < limits.meetings);
+	const incrementChatUsage = useCallback(async () => {
+		if (!canChat) return;
 
-  const fetchUsage = useCallback(async () => {
-    try {
-      const { success, data } = await fetchTokenUsage();
+		setUsage((prev) =>
+			prev ? { ...prev, chatMessagesUsed: prev.chatMessagesUsed + 1 } : null,
+		);
+	}, [canChat]);
 
-      if (success && data) {
-        setUsage(data);
-      }
-    } catch (error) {
-      toast.error("Failed to load usage data");
-      console.error("Failed to load usage data", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+	const incrementMeetingUsage = useCallback(async () => {
+		if (!canScheduleMeeting) return;
 
-  const incrementChatUsage = async () => {
-    if (!canChat) {
-      return;
-    }
+		await refreshUsage();
+	}, [canScheduleMeeting, refreshUsage]);
 
-    try {
-      const { success, upgradeRequired, message } = await incrementChat();
+	useEffect(() => {
+		let cancelled = false;
 
-      if (!success) {
-        refreshUsage();
-      }
+		async function init() {
+			setLoading(true);
+			const userId = await getClientSession();
 
-      if (success) {
-        setUsage((prev) =>
-          prev
-            ? {
-                ...prev,
-                chatMessagesToday: prev.chatMessagesToday + 1,
-              }
-            : null
-        );
-      } else {
-        if (upgradeRequired) {
-          toast.error(message);
-        }
-      }
-    } catch (error) {
-      toast.error("Failed to increment chat usage");
-      console.error("Failed to increment chat usage", error);
-    }
-  };
+			if (!userId) {
+				setLoading(false);
+				router.push(segments.signIn);
+				return;
+			}
 
-  const incrementMeetingUsage = async () => {
-    if (!canScheduleMeeting) {
-      return;
-    }
+			if (!cancelled) {
+				await refreshUsage();
+			}
+		}
 
-    try {
-      const { success } = await incrementMeeting();
+		init();
+		return () => {
+			cancelled = true;
+		};
+	}, [refreshUsage, router]);
 
-      if (!success) {
-        refreshUsage();
-      }
+	const value = useMemo<UsageContextType>(
+		() => ({
+			usage,
+			loading,
+			canChat,
+			canScheduleMeeting,
+			limits,
+			incrementChatUsage,
+			incrementMeetingUsage,
+			refreshUsage,
+		}),
+		[
+			usage,
+			loading,
+			canChat,
+			canScheduleMeeting,
+			limits,
+			incrementChatUsage,
+			incrementMeetingUsage,
+			refreshUsage,
+		],
+	);
 
-      if (success) {
-        setUsage((prev) =>
-          prev
-            ? {
-                ...prev,
-                meetingsThisMonth: prev.meetingsThisMonth + 1,
-              }
-            : null
-        );
-      }
-    } catch (error) {
-      toast.error("Failed to increment meeting usage");
-      console.error("Failed to increment meeting usage:", error);
-    }
-  };
-
-  const refreshUsage = async () => {
-    await fetchUsage();
-  };
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      const userId = await getClientSession();
-
-      if (userId) {
-        fetchUsage();
-      } else {
-        setLoading(false);
-        router.push(segments.signIn);
-      }
-    }
-    fetchData();
-  }, [fetchUsage, router]);
-
-  const values = {
-    usage,
-    loading,
-    canChat,
-    canScheduleMeeting,
-    limits,
-    incrementChatUsage,
-    incrementMeetingUsage,
-  };
-
-  return (
-    <TokenUsageContext.Provider value={values}>
-      {children}
-    </TokenUsageContext.Provider>
-  );
+	return (
+		<TokenUsageContext.Provider value={value}>
+			{children}
+		</TokenUsageContext.Provider>
+	);
 }

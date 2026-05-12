@@ -1,96 +1,105 @@
 import "server-only";
 
-import prisma from "@/lib/prisma";
+import { and, desc, eq, lt } from "drizzle-orm";
+import { db } from "@/db";
+import type { SubscriptionPlan } from "@/db/schema";
+import { subscription } from "@/db/schema";
 
-export async function hasActiveSubscription(userId: string) {
-  try {
-    const activeSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: {
-          in: ["ACTIVE"],
-        },
-        OR: [
-          { currentPeriodEnd: null },
-          { currentPeriodEnd: { gt: new Date() } },
-        ],
-      },
-    });
+const PRODUCT_PLAN_MAPPINGS: Array<{
+	plan: SubscriptionPlan;
+	productId: string | undefined;
+}> = [
+	{ plan: "PRO", productId: process.env.POLAR_PRODUCT_PRO },
+	{ plan: "BUSINESS", productId: process.env.POLAR_PRODUCT_BUSINESS },
+	{ plan: "ENTERPRISE", productId: process.env.POLAR_PRODUCT_ENTERPRISE },
+];
 
-    return activeSubscription;
-  } catch (error) {
-    console.error("Error checking subscription status:", error);
-    return null;
-  }
+function isSubscriptionPlan(value: string): value is SubscriptionPlan {
+	return ["FREE", "PRO", "BUSINESS", "ENTERPRISE"].includes(value);
 }
 
-// async function resetMonthlyUsage(userId: string, lastUsageReset: Date | null) {
-//   const now = new Date();
-//   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+export function normalizeSubscriptionPlan({
+	planName,
+	productId,
+}: {
+	planName?: string | null;
+	productId?: string | null;
+}): SubscriptionPlan {
+	if (productId) {
+		const mappedPlan = PRODUCT_PLAN_MAPPINGS.find(
+			(entry) => entry.productId === productId,
+		)?.plan;
 
-//   if (!lastUsageReset || lastUsageReset < startOfMonth) {
-//     await prisma.user.update({
-//       where: { id: userId },
-//       data: {
-//         meetingsThisMonth: 0,
-//         chatMessagesToday: 0,
-//         lastUsageReset: now,
-//       },
-//     });
-//   }
-// }
+		if (mappedPlan) {
+			return mappedPlan;
+		}
+	}
+
+	const normalizedPlan = planName?.trim().toUpperCase();
+	return normalizedPlan && isSubscriptionPlan(normalizedPlan)
+		? normalizedPlan
+		: "FREE";
+}
+
+export async function hasActiveSubscription(userId: string) {
+	try {
+		const [row] = await db
+			.select()
+			.from(subscription)
+			.where(
+				and(eq(subscription.userId, userId), eq(subscription.status, "ACTIVE")),
+			)
+			.limit(1);
+
+		return row ?? null;
+	} catch (error) {
+		console.error("Error checking subscription status:", error);
+		return null;
+	}
+}
 
 async function cancelExpiredPastDueSubscriptions(userId: string) {
-  const now = new Date();
+	const now = new Date();
 
-  const pastDueSubscription = await prisma.subscription.findFirst({
-    where: {
-      userId,
-      status: "PAST_DUE",
-      gracePeriodEndsAt: { lt: now },
-    },
-  });
+	const [pastDueSub] = await db
+		.select()
+		.from(subscription)
+		.where(
+			and(
+				eq(subscription.userId, userId),
+				eq(subscription.status, "PAST_DUE"),
+				lt(subscription.gracePeriodEndsAt, now),
+			),
+		)
+		.limit(1);
 
-  if (pastDueSubscription) {
-    await prisma.subscription.update({
-      where: { id: pastDueSubscription.id },
-      data: { status: "CANCELED" },
-    });
-  }
+	if (pastDueSub) {
+		await db
+			.update(subscription)
+			.set({ status: "CANCELED" })
+			.where(eq(subscription.id, pastDueSub.id));
+	}
 }
 
 async function findActiveSubscription(userId: string) {
-  const now = new Date();
+	const [row] = await db
+		.select()
+		.from(subscription)
+		.where(
+			and(eq(subscription.userId, userId), eq(subscription.status, "ACTIVE")),
+		)
+		.orderBy(desc(subscription.createdAt))
+		.limit(1);
 
-  return prisma.subscription.findFirst({
-    where: {
-      userId,
-      status: { in: ["ACTIVE"] },
-      OR: [
-        { currentPeriodEnd: null },
-        { currentPeriodEnd: { gt: now } },
-        { gracePeriodEndsAt: { gt: now } },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-  });
+	return row ?? null;
 }
 
 export async function getUserActiveSubscription(userId: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { lastUsageReset: true },
-    });
-
-    if (!user) return null;
-
-    // await resetMonthlyUsage(userId, user.lastUsageReset);
-    await cancelExpiredPastDueSubscriptions(userId);
-
-    return await findActiveSubscription(userId);
-  } catch (error) {
-    console.error("Error loading user subscription data:", error);
-    return null;
-  }
+	try {
+		await cancelExpiredPastDueSubscriptions(userId);
+		return await findActiveSubscription(userId);
+	} catch (error) {
+		console.error("Error loading user subscription data:", error);
+		return null;
+	}
 }

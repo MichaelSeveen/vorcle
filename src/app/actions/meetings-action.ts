@@ -1,44 +1,49 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { meeting } from "@/db/schema";
 import { getCurrentUser } from "@/helpers/user";
-import prisma from "@/lib/prisma";
 
 export async function removeMeetingById(meetingId: string) {
-  try {
-    const currentUser = await getCurrentUser();
+	try {
+		const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      return { success: false, error: "Not authenticated" };
-    }
+		if (!currentUser) {
+			return { success: false, error: "Not authenticated" };
+		}
 
-    const meeting = await prisma.meeting.findUnique({
-      where: {
-        id: meetingId,
-      },
-      include: {
-        user: true,
-      },
-    });
+		const [meetingRow] = await db
+			.select({
+				id: meeting.id,
+				userId: meeting.userId,
+			})
+			.from(meeting)
+			.where(eq(meeting.id, meetingId))
+			.limit(1);
 
-    if (!meeting) {
-      return { success: false, error: "Meeting not found" };
-    }
+		if (!meetingRow) {
+			return { success: false, error: "Meeting not found" };
+		}
 
-    if (meeting.user.id !== currentUser.id)
-      return { success: false, error: "Not authorized to delete this meeting" };
+		if (meetingRow.userId !== currentUser.id)
+			return {
+				success: false,
+				error: "Not authorized to delete this meeting",
+			};
 
-    await prisma.meeting.delete({
-      where: {
-        id: meetingId,
-      },
-    });
+		await db
+			.delete(meeting)
+			.where(
+				and(eq(meeting.id, meetingId), eq(meeting.userId, currentUser.id)),
+			);
 
-    return {
-      success: true,
-      message: "Meeting deleted successfully",
-    };
-  } catch (error) {
-    console.error("Failed to delete meeting:", error);
-    return { success: false, error: "Failed to delete meeting" };
-  }
+		return {
+			success: true,
+			message: "Meeting deleted successfully",
+		};
+	} catch (error) {
+		console.error("Failed to delete meeting:", error);
+		return { success: false, error: "Failed to delete meeting" };
+	}
 }

@@ -37,8 +37,9 @@ yarn-error.log*
 # lambda functions
 /lambda-chat
 /lambda-function
-/testter.ts
+/.agents
 /scripts
+AGENTS.md
 
 # vercel
 .vercel
@@ -48,3 +49,5 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+# heroui-agents-md
+.heroui-docs/

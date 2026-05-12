@@ -1,125 +1,228 @@
 "use client";
 
+import { Button, Chip, Label, Link, Modal, ScrollShadow } from "@heroui/react";
+import {
+	Calendar03Icon,
+	ChatBotIcon,
+	Clock01Icon,
+	Link03Icon,
+	Location01Icon,
+	NoteIcon,
+	RepeatIcon,
+	User03Icon,
+	UserMultiple02Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { format, parseISO } from "date-fns";
-import { Text } from "lucide-react";
+import NextLink from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { getRecurrenceSummary } from "@/helpers/event-calendar/recurrence";
+import type { Event } from "../config/types";
+import { formatTime, getEventSourceLabel } from "../config/utils";
 import { useCalendar } from "../context/calendar-context";
-import { Event } from "../config/types";
 import { EventDialog } from "./event-dialog";
-import { formatTime } from "../config/utils";
 import RemoveEventDialog from "./remove-event";
-import {
-  DuoCalendarIcon,
-  DuoClockIcon,
-  DuoUserIcon,
-  DuoUsersIcon,
-} from "@/components/custom-icons/duotone";
-import { Label } from "@/components/ui/label";
 
 interface Props {
-  event: Event;
-  children: ReactNode;
+	event: Event;
+	children: ReactNode;
 }
 
 export function EventDetailsDialog({ event, children }: Props) {
-  const startDate = parseISO(event.startDate);
-  const endDate = parseISO(event.endDate);
-  const { use24HourFormat } = useCalendar();
+	const startDate = parseISO(event.startDate);
+	const endDate = parseISO(event.endDate);
+	const { getSourceEventById, use24HourFormat } = useCalendar();
+	const sourceEvent = getSourceEventById(event.sourceId) ?? event;
+	const recurrenceSummary = getRecurrenceSummary(sourceEvent);
+	const attendees =
+		event.attendees && event.attendees.length > 0
+			? event.attendees.map((attendee) => attendee.name).join(", ")
+			: "No attendees";
 
-  const attendees =
-    event?.attendees && event.attendees.length > 0
-      ? event.attendees.map((attendee) => attendee.name).join(", ")
-      : "No attendees";
+	return (
+		<Modal>
+			<Modal.Trigger className="block w-full text-left">
+				{children}
+			</Modal.Trigger>
+			<Modal.Backdrop>
+				<Modal.Container>
+					<Modal.Dialog>
+						<Modal.CloseTrigger />
+						<Modal.Header>
+							<Modal.Heading className="flex flex-wrap items-center gap-2">
+								<span>{event.title}</span>
+								<Chip size="sm" variant="secondary">
+									{getEventSourceLabel(event)}
+								</Chip>
+								{sourceEvent.recurrence?.rule ? (
+									<Chip size="sm" variant="secondary">
+										Repeats
+									</Chip>
+								) : null}
+							</Modal.Heading>
+							<p className="sr-only">Details of the calendar event</p>
+						</Modal.Header>
 
-  return (
-    <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{event.title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Details of the calendar event
-          </DialogDescription>
-        </DialogHeader>
+						<Modal.Body>
+							<ScrollShadow className="max-h-[35rem] overflow-auto">
+								<div className="space-y-4">
+									<div className="flex items-start gap-2">
+										<HugeiconsIcon icon={User03Icon} size={16} />
+										<div>
+											<Label>Responsible</Label>
+											<p className="text-sm text-foreground">
+												{event.user.name}
+											</p>
+										</div>
+									</div>
 
-        <ScrollArea className="max-h-[35rem]">
-          <div className="space-y-4">
-            <div className="flex items-start gap-2">
-              <DuoUserIcon className="mt-1 size-4 shrink-0" />
-              <div>
-                <Label>Responsible</Label>
-                <p className="text-sm text-muted-foreground">
-                  {event.user.name}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <DuoUsersIcon className="mt-1 size-4 shrink-0" />
-              <div>
-                <Label>Attendees</Label>
-                <p className="text-sm text-muted-foreground">{attendees}</p>
-              </div>
-            </div>
+									<div className="flex items-start gap-2">
+										<HugeiconsIcon icon={UserMultiple02Icon} size={16} />
+										<div>
+											<Label>Attendees</Label>
+											<p className="text-sm text-foreground">
+												{attendees}
+											</p>
+										</div>
+									</div>
 
-            <div className="flex items-start gap-2">
-              <DuoCalendarIcon className="mt-1 size-4 shrink-0" />
-              <div>
-                <Label>Start Date</Label>
-                <time
-                  dateTime={startDate.toISOString()}
-                  className="text-sm text-muted-foreground"
-                >
-                  {format(startDate, "EEEE dd MMMM")}
-                  <span className="mx-1">at</span>
-                  {formatTime(parseISO(event.startDate), use24HourFormat)}
-                </time>
-              </div>
-            </div>
+									<div className="flex items-start gap-2">
+										<HugeiconsIcon icon={Calendar03Icon} size={16} />
+										<div>
+											<Label>Start Date</Label>
+											<time
+												dateTime={startDate.toISOString()}
+												className="text-sm text-foreground"
+											>
+												{format(startDate, "EEEE dd MMMM")}
+												<span className="mx-1">at</span>
+												{formatTime(startDate, use24HourFormat)}
+											</time>
+										</div>
+									</div>
 
-            <div className="flex items-start gap-2">
-              <DuoClockIcon className="mt-1 size-4 shrink-0" />
-              <div>
-                <Label>End Date</Label>
-                <time
-                  dateTime={endDate.toISOString()}
-                  className="text-sm text-muted-foreground"
-                >
-                  {format(endDate, "EEEE dd MMMM")}
-                  <span className="mx-1">at</span>
-                  {formatTime(parseISO(event.endDate), use24HourFormat)}
-                </time>
-              </div>
-            </div>
+									<div className="flex items-start gap-2">
+										<HugeiconsIcon icon={Clock01Icon} size={16} />
+										<div>
+											<Label>End Date</Label>
+											<time
+												dateTime={endDate.toISOString()}
+												className="text-sm text-foreground"
+											>
+												{format(endDate, "EEEE dd MMMM")}
+												<span className="mx-1">at</span>
+												{formatTime(endDate, use24HourFormat)}
+											</time>
+										</div>
+									</div>
 
-            <div className="flex items-start gap-2">
-              <Text className="mt-1 size-4 shrink-0 text-[#9FA2AB]" />
-              <div>
-                <Label>Description</Label>
-                <p className="text-sm text-muted-foreground">
-                  {event.description}
-                </p>
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-        <DialogFooter>
-          <EventDialog event={event}>
-            <Button variant="outline">Edit</Button>
-          </EventDialog>
-          <RemoveEventDialog eventId={event.id} />
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+									{event.location ? (
+										<div className="flex items-start gap-2">
+											<HugeiconsIcon icon={Location01Icon} size={16} />
+											<div>
+												<Label>Location</Label>
+												<p className="text-sm text-foreground">
+													{event.location}
+												</p>
+											</div>
+										</div>
+									) : null}
+
+									{event.meetingLink ? (
+										<div className="flex items-start gap-2">
+											<HugeiconsIcon icon={Link03Icon} size={16} />
+											<div>
+												<Label>Meeting Link</Label>
+												<a
+													className="text-sm text-primary hover:underline"
+													href={event.meetingLink}
+													target="_blank"
+													rel="noreferrer"
+												>
+													{event.meetingLink}
+												</a>
+											</div>
+										</div>
+									) : null}
+
+									{recurrenceSummary ? (
+										<div className="flex items-start gap-2">
+											<HugeiconsIcon icon={RepeatIcon} size={16} />
+											<div>
+												<Label>Recurrence</Label>
+												<p className="text-sm text-foreground">
+													{recurrenceSummary}
+												</p>
+											</div>
+										</div>
+									) : null}
+
+									{event.botStatus ? (
+										<div className="flex items-start gap-2">
+											<HugeiconsIcon icon={ChatBotIcon} size={16} />
+											<div>
+												<Label>Bot Status</Label>
+												<p className="text-sm text-foreground capitalize">
+													{event.botStatus}
+												</p>
+											</div>
+										</div>
+									) : null}
+
+									<div className="flex items-start gap-2">
+										<HugeiconsIcon icon={NoteIcon} size={16} />
+										<div>
+											<Label>Description</Label>
+											<p className="text-sm text-foreground">
+												{event.description || "No description"}
+											</p>
+										</div>
+									</div>
+								</div>
+							</ScrollShadow>
+						</Modal.Body>
+
+						<Modal.Footer>
+							{event.source === "manual" && sourceEvent.editable ? (
+								<>
+									<EventDialog event={sourceEvent}>
+										<Button variant="outline">
+											{sourceEvent.recurrence?.rule ? "Edit series" : "Edit"}
+										</Button>
+									</EventDialog>
+									{sourceEvent.removable ? (
+										<RemoveEventDialog
+											eventId={sourceEvent.sourceId}
+											label={
+												sourceEvent.recurrence?.rule
+													? "Delete series"
+													: "Delete"
+											}
+										/>
+									) : null}
+								</>
+							) : null}
+
+							{event.source === "meeting" && event.meetingId ? (
+								<NextLink href={`/meeting/${event.meetingId}`}>
+									<Button variant="outline">Open meeting</Button>
+								</NextLink>
+							) : null}
+
+							{event.source === "google-overlay" &&
+							(event.externalUrl || event.meetingLink) ? (
+								<Link
+									href={event.externalUrl ?? event.meetingLink ?? "#"}
+									target="_blank"
+									rel="noreferrer"
+								>
+									Open in Google
+								</Link>
+							) : null}
+						</Modal.Footer>
+					</Modal.Dialog>
+				</Modal.Container>
+			</Modal.Backdrop>
+		</Modal>
+	);
 }

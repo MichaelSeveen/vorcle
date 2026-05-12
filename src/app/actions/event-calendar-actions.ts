@@ -1,144 +1,161 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import type {
+	Event,
+	ManualEventInput,
+} from "@/components/event-calendar/config/types";
+import { segments } from "@/config/segments";
+import { db } from "@/db";
+import { event, user } from "@/db/schema";
+import { normalizeManualEventRow } from "@/helpers/event-calendar/normalize";
 import { getCurrentUser } from "@/helpers/user";
-import { Event, EventColor } from "@/components/event-calendar/config/types";
-import prisma from "@/lib/prisma";
 
-export async function create(data: Omit<Event, "id" | "user">) {
-  try {
-    const currentUser = await getCurrentUser();
+export async function create(data: ManualEventInput) {
+	try {
+		const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      return { success: false, error: "Not authenticated" };
-    }
+		if (!currentUser) {
+			return { success: false, error: "Not authenticated" };
+		}
 
-    const newEvent = await prisma.event.create({
-      data: {
-        title: data.title,
-        description: data.description || null,
-        location: data.location || null,
-        meetingLink: data.meetingLink || null,
-        color: data.color || ("blue" as EventColor),
-        startDate: data.startDate,
-        endDate: data.endDate,
-        attendees:
-          data.attendees?.map((user) => ({
-            ...user,
-          })) || [],
-        user: { connect: { id: currentUser.id } },
-      },
-    });
+		const [newEvent] = await db
+			.insert(event)
+			.values({
+				attendees: data.attendees?.length ? data.attendees : null,
+				color: data.color,
+				description: data.description || null,
+				endDate: new Date(data.endDate),
+				isAllDay: data.isAllDay,
+				location: data.location || null,
+				meetingLink: data.meetingLink || null,
+				recurrenceExDates: data.recurrence?.exDates?.length
+					? data.recurrence.exDates
+					: null,
+				recurrenceRule: data.recurrence?.rule ?? null,
+				recurrenceTimezone: data.recurrence?.timezone ?? data.timeZone ?? null,
+				startDate: new Date(data.startDate),
+				timeZone: data.timeZone ?? null,
+				title: data.title,
+				userId: currentUser.id,
+			})
+			.returning();
 
-    if (newEvent) {
-      const existingEvent = await prisma.event.findUnique({
-        where: {
-          id: newEvent.id,
-        },
-        include: {
-          user: true,
-        },
-      });
+		if (newEvent) {
+			const [userRow] = await db
+				.select({ id: user.id, name: user.name, image: user.image })
+				.from(user)
+				.where(eq(user.id, currentUser.id))
+				.limit(1);
 
-      if (!existingEvent) {
-        return {
-          success: false,
-          error: "Event not found",
-        };
-      }
+			if (!userRow) {
+				return { success: false, error: "User not found" };
+			}
 
-      const eventWithUser = {
-        ...newEvent,
-        startDate: newEvent.startDate.toISOString(),
-        endDate: newEvent.endDate.toISOString(),
-        color: newEvent.color as EventColor,
-        description: newEvent.description ?? "",
-        attendees: (newEvent.attendees as unknown as Event["attendees"]) ?? [],
-        user: {
-          id: existingEvent.user.id,
-          name: existingEvent.user.name,
-          picturePath: existingEvent.user.image,
-        },
-      };
+			revalidatePath(segments.workspace.calendar);
 
-      return {
-        success: true,
-        event: eventWithUser,
-      };
-    }
+			return {
+				success: true,
+				event: normalizeManualEventRow({
+					...newEvent,
+					user: userRow,
+				}),
+			};
+		}
 
-    return { success: false, error: "Failed to create event" };
-  } catch (error) {
-    console.error("Error creating event:", error);
-    return { success: false, error: "Failed to create event" };
-  }
+		return { success: false, error: "Failed to create event" };
+	} catch (error) {
+		console.error("Error creating event:", error);
+		return { success: false, error: "Failed to create event" };
+	}
 }
 
 export async function update(data: Event) {
-  try {
-    const currentUser = await getCurrentUser();
+	try {
+		const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      return { success: false, error: "Not authenticated" };
-    }
+		if (!currentUser) {
+			return { success: false, error: "Not authenticated" };
+		}
 
-    const updatedEvent = await prisma.event.update({
-      where: { id: data.id },
-      data: {
-        title: data.title,
-        description: data.description,
-        location: data.location,
-        meetingLink: data.meetingLink,
-        color: data.color,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        attendees: data.attendees?.map((user) => ({ ...user })) || [],
-      },
-    });
+		if (data.source !== "manual" || !data.editable) {
+			return { success: false, error: "Only manual events can be edited" };
+		}
 
-    const existingEvent = await prisma.event.findUnique({
-      where: { id: updatedEvent.id },
-      include: { user: true },
-    });
+		const [updatedEvent] = await db
+			.update(event)
+			.set({
+				attendees: data.attendees?.length ? data.attendees : null,
+				color: data.color,
+				description: data.description,
+				endDate: new Date(data.endDate),
+				isAllDay: data.isAllDay,
+				location: data.location,
+				meetingLink: data.meetingLink,
+				recurrenceExDates: data.recurrence?.exDates?.length
+					? data.recurrence.exDates
+					: null,
+				recurrenceRule: data.recurrence?.rule ?? null,
+				recurrenceTimezone: data.recurrence?.timezone ?? data.timeZone ?? null,
+				startDate: new Date(data.startDate),
+				timeZone: data.timeZone ?? null,
+				title: data.title,
+			})
+			.where(and(eq(event.id, data.sourceId), eq(event.userId, currentUser.id)))
+			.returning();
 
-    if (!existingEvent) {
-      return { success: false, error: "Event not found" };
-    }
+		if (!updatedEvent) {
+			return { success: false, error: "Event not found" };
+		}
 
-    const eventWithUser = {
-      ...updatedEvent,
-      startDate: updatedEvent.startDate.toISOString(),
-      endDate: updatedEvent.endDate.toISOString(),
-      color: updatedEvent.color as EventColor,
-      description: updatedEvent.description || "",
-      attendees:
-        (updatedEvent.attendees as unknown as Event["attendees"]) || [],
-      user: {
-        id: existingEvent.user.id,
-        name: existingEvent.user.name,
-        picturePath: existingEvent.user.image || null,
-      },
-    };
+		const [userRow] = await db
+			.select({ id: user.id, name: user.name, image: user.image })
+			.from(user)
+			.where(eq(user.id, currentUser.id))
+			.limit(1);
 
-    return { success: true, event: eventWithUser };
-  } catch (error) {
-    console.error("Error updating event:", error);
-    return { success: false, error: "Failed to update event" };
-  }
+		if (!userRow) {
+			return { success: false, error: "User not found" };
+		}
+
+		revalidatePath(segments.workspace.calendar);
+
+		return {
+			success: true,
+			event: normalizeManualEventRow({
+				...updatedEvent,
+				user: userRow,
+			}),
+		};
+	} catch (error) {
+		console.error("Error updating event:", error);
+		return { success: false, error: "Failed to update event" };
+	}
 }
 
 export async function remove(id: string) {
-  try {
-    const currentUser = await getCurrentUser();
+	try {
+		const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      return { success: false, error: "Not authenticated" };
-    }
-    await prisma.event.delete({
-      where: { id },
-    });
-    return { success: true };
-  } catch (error) {
-    console.error("Error deleting event:", error);
-    return { success: false, error: "Failed to delete event" };
-  }
+		if (!currentUser) {
+			return { success: false, error: "Not authenticated" };
+		}
+
+		const [deletedEvent] = await db
+			.delete(event)
+			.where(and(eq(event.id, id), eq(event.userId, currentUser.id)))
+			.returning({ id: event.id });
+
+		if (!deletedEvent) {
+			return { success: false, error: "Event not found" };
+		}
+
+		revalidatePath(segments.workspace.calendar);
+
+		return { success: true };
+	} catch (error) {
+		console.error("Error deleting event:", error);
+		return { success: false, error: "Failed to delete event" };
+	}
 }

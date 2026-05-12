@@ -1,162 +1,111 @@
 import "server-only";
 
-import prisma from "./prisma";
 import { PLAN_LIMITS } from "@/config/types";
-import { SubscriptionPlan } from "@prisma/client";
-import { getUserActiveSubscription } from "@/helpers/subscriptions";
+import type { SubscriptionPlan } from "@/db/schema";
+import {
+	consumeChatUsage,
+	consumeMeetingUsage,
+	getUsageSnapshot,
+	previewChatUsage,
+	previewMeetingUsage,
+	releaseChatUsage,
+	releaseMeetingUsage,
+} from "@/helpers/subscriptions/usage";
 
 export async function canUserSendBot(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    return { allowed: false, reason: "User not found" };
-  }
-
-  const activeSubscription = await getUserActiveSubscription(userId);
-
-  if (!activeSubscription) {
-    return { allowed: false, reason: "You do not have an active subscription" };
-  }
-
-  const planName = (activeSubscription.planName as SubscriptionPlan) || "FREE";
-  const status = activeSubscription.status;
-
-  if (planName === "FREE" || status !== "ACTIVE") {
-    return {
-      allowed: false,
-      reason: "Upgrade your plan to send bots to your meetings",
-    };
-  }
-
-  const limits = PLAN_LIMITS[planName];
-
-  if (!limits) {
-    console.error(`Unknown plan: ${planName}`);
-    return { allowed: false, reason: "Invalid subscription plan" };
-  }
-
-  if (limits.meetings !== -1 && user.meetingsThisMonth >= limits.meetings) {
-    return {
-      allowed: false,
-      reason: `You've reached your monthly limit of ${limits.meetings} meetings`,
-    };
-  }
-
-  return { allowed: true };
+	return previewMeetingUsage(userId);
 }
 
 export async function canUserChat(userId: string) {
-  const { success, data } = await getCurrentUserTokenUsage(userId);
+	const result = await previewChatUsage(userId);
 
-  if (!success || !data) {
-    return { allowed: false, reason: "Failed to get user data" };
-  }
-
-  const { effectivePlan, effectiveStatus, chatMessagesToday } = data;
-
-  const limits = PLAN_LIMITS[effectivePlan];
-  const isFree = effectivePlan === "FREE";
-  const isActivePaid = !isFree && effectiveStatus === "ACTIVE";
-
-  const canChat =
-    (isFree || isActivePaid) &&
-    (limits.chatMessages === -1 || chatMessagesToday < limits.chatMessages);
-
-  if (!canChat) {
-    return {
-      allowed: false,
-      reason:
-        limits.chatMessages === -1
-          ? "Not allowed for your current plan"
-          : `Reached limit of ${limits.chatMessages} daily messages`,
-    };
-  }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { chatMessagesToday: { increment: 1 } },
-  });
-
-  return { allowed: true };
+	return {
+		allowed: result.allowed,
+		code: result.code,
+		reason: result.reason,
+	};
 }
 
 export async function incrementMeetingUsage(userId: string) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { meetingsThisMonth: { increment: 1 } },
-  });
+	const result = await consumeMeetingUsage(userId);
+
+	if (!result.allowed) {
+		throw new Error(result.reason ?? "Failed to increment meeting usage");
+	}
+
+	return result;
+}
+
+export async function decrementMeetingUsage(userId: string) {
+	return releaseMeetingUsage(userId);
+}
+
+export async function decrementChatUsage(userId: string) {
+	return releaseChatUsage(userId);
 }
 
 export async function incrementUserChatTokenUsage(userId: string) {
-  try {
-    const chatCheck = await canUserChat(userId);
+	try {
+		const result = await consumeChatUsage(userId);
 
-    if (!chatCheck.allowed) {
-      return {
-        success: false,
-        message: chatCheck.reason,
-        upgradeRequired: true,
-      };
-    }
+		if (!result.allowed) {
+			return {
+				success: false,
+				message: result.reason,
+				upgradeRequired: result.code === "CHAT_LIMIT_REACHED",
+			};
+		}
 
-    return { success: chatCheck.allowed };
-  } catch (error) {
-    console.log(error);
-    return { success: false, message: "Failed to increment your usage" };
-  }
+		return { success: true };
+	} catch (error) {
+		console.error("incrementUserChatTokenUsage failed:", error);
+		return { success: false, message: "Failed to increment your usage" };
+	}
 }
 
 export async function incrementUserMeetingsTokenUsage(userId: string) {
-  try {
-    await incrementMeetingUsage(userId);
-    return { success: true };
-  } catch (error) {
-    console.log(error);
-    return { success: false, message: "Failed to increment your usage" };
-  }
+	try {
+		const result = await consumeMeetingUsage(userId);
+
+		if (!result.allowed) {
+			return { success: false, message: result.reason };
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error("incrementUserMeetingsTokenUsage failed:", error);
+		return { success: false, message: "Failed to increment your usage" };
+	}
 }
 
 export async function getCurrentUserTokenUsage(userId: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        chatMessagesToday: true,
-        meetingsThisMonth: true,
-      },
-    });
+	try {
+		const snapshot = await getUsageSnapshot(userId);
 
-    if (!user) {
-      return {
-        success: false,
-        message: "User not found",
-      };
-    }
-
-    const activeSubscription = await getUserActiveSubscription(userId);
-    const effectivePlan =
-      (activeSubscription?.planName as SubscriptionPlan) || "FREE";
-    const effectiveStatus = activeSubscription?.status || "INACTIVE";
-    const nextPaymentDate = activeSubscription?.currentPeriodEnd;
-
-    return {
-      success: true,
-      data: {
-        ...user,
-        effectivePlan,
-        effectiveStatus,
-        nextPaymentDate,
-      },
-    };
-  } catch (error) {
-    console.log(error);
-    return { success: false, message: "Failed to get your usage" };
-  }
+		return {
+			success: true,
+			data: {
+				id: snapshot.id,
+				effectivePlan: snapshot.effectivePlan,
+				effectiveStatus: snapshot.effectiveStatus,
+				chatMessagesUsed: snapshot.chatMessagesUsed,
+				meetingsUsed: snapshot.meetingsUsed,
+				usagePeriodStart: snapshot.usagePeriodStart,
+				usagePeriodEnd: snapshot.usagePeriodEnd,
+				nextPaymentDate: snapshot.nextResetDate,
+				nextResetDate: snapshot.nextResetDate,
+				cycleAnchor: snapshot.cycleAnchor,
+				// Legacy aliases retained while the client fully migrates.
+				chatMessagesToday: snapshot.chatMessagesUsed,
+				meetingsThisMonth: snapshot.meetingsUsed,
+			},
+		};
+	} catch (error) {
+		console.error("getCurrentUserTokenUsage failed:", error);
+		return { success: false, message: "Failed to get your usage" };
+	}
 }
 
 export function getPlanLimits(plan: SubscriptionPlan) {
-  return PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
+	return PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
 }

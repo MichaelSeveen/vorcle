@@ -1,46 +1,44 @@
-import React from "react";
-import { VorcleLogoMain } from "../custom-icons/brand-logo";
-import { segments } from "@/config/segments";
+import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { segments } from "@/config/segments";
 
 export default function FooterSection() {
-  const date = new Date();
+	return (
+		<footer className="bg-vivid-deep-blue text-white">
+			<div className="w-full max-w-[calc(100%-2rem)] md:max-w-[min(calc(100%-5rem),calc(1200/16*1rem))] mx-auto h-[30rem] lg:h-[40rem] py-8">
+				<div className="relative flex flex-col justify-between h-full">
+					<h2 className="text-2xl md:text-4xl lg:text-5xl tracking-tight font-semibold text-pretty w-full max-w-xl mb-6">
+						Clarity in every conversation that matters
+					</h2>
 
-  return (
-    <footer>
-      <div className="grid grid-cols-[1fr_calc(100%-2rem)_1fr] md:grid-cols-[1fr_min(calc(100%-5rem),calc(1200/16*1rem))_1fr] [&>*]:col-[2] border-b">
-        <div className="h-15 md:h-18 lg:h-30 border-x" />
-      </div>
-      <div className="border-b">
-        <div className="border-x w-full max-w-[calc(100%-2rem)] md:max-w-[min(calc(100%-5rem),calc(1200/16*1rem))] mx-auto h-[20rem] lg:h-[30rem] p-4 md:p-6">
-          <div className="relative flex flex-col justify-between h-full">
-            <VorcleLogoMain />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-              <h2 className="text-2xl md:text-3xl lg:text-5xl tracking-tight font-semibold text-pretty md:col-span-2 text-muted-foreground">
-                Clarity in every conversation that matters
-              </h2>
-              <div className="md:self-center">
-                <Link
-                  aria-label="go to log in page"
-                  href={segments.signIn}
-                  className="w-fit px-8 py-3 inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-deep-saffron text-muted"
-                >
-                  Try vorcle for free
-                  <ArrowRight className="size-3.5" />
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-[1fr_calc(100%-2rem)_1fr] md:grid-cols-[1fr_min(calc(100%-5rem),calc(1200/16*1rem))_1fr] [&>*]:col-[2] border-b">
-        <div className="flex items-center h-15 md:h-18 lg:h-20 border-x p-2">
-          <p className="text-xs text-muted-foreground">
-            &copy; Copyright Vorcle {date.getFullYear()}. All rights reserved.
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
+					<Link
+						aria-label="go to log in page"
+						href={segments.signIn}
+						className="px-6 py-2 lg:px-8 lg:py-3 inline-flex items-center justify-center gap-2 text-sm font-semibold bg-vivid-sky-blue font-mono text-white w-fit"
+					>
+						TRY VORCLE FOR FREE
+						<HugeiconsIcon icon={ArrowRight02Icon} size={16} color="#FFF" />
+					</Link>
+
+					<div className="mt-auto">
+						<svg
+							viewBox="0 0 177 49"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+							aria-hidden="true"
+						>
+							<path
+								d="M18.24 47.744h-3.232q-.705 0-1.216-.352-.512-.384-.8-1.12L3.488 22.144q-.384-.991-.704-1.408a1.3 1.3 0 0 0-.8-.512l-1.12-.288q-.48-.16-.672-.352Q0 19.36 0 18.976q0-.449.32-.672.32-.256.832-.256H15.52q1.152 0 1.152.928a.78.78 0 0 1-.224.576q-.192.225-.736.352l-1.312.256q-1.504.32-1.824.992-.288.64.288 2.208l7.456 19.584-1.824 1.76L26.24 23.68q.64-1.695.288-2.464-.32-.768-1.792-1.056l-1.376-.256q-.512-.128-.736-.32-.225-.224-.224-.608 0-.449.32-.672.32-.256.864-.256h8.512q.544 0 .864.256.32.224.32.672a.94.94 0 0 1-.192.576q-.192.224-.768.384l-.992.192q-.704.192-1.248.928-.512.735-1.152 2.432L20.224 46.4q-.32.768-.832 1.056a2.3 2.3 0 0 1-1.152.288m32.088-30.4q4.705 0 8.256 1.984a14.4 14.4 0 0 1 5.569 5.504q2.015 3.487 2.015 8.064 0 4.447-2.08 7.936-2.047 3.456-5.695 5.472-3.617 1.984-8.385 1.984-4.671 0-8.256-1.952-3.551-1.984-5.568-5.472-1.983-3.488-1.983-8.032 0-4.48 2.047-7.968 2.08-3.488 5.697-5.504 3.648-2.016 8.383-2.016m2.016 28.64q2.112-.288 3.425-1.984 1.311-1.696 1.696-4.736.383-3.072-.32-7.392-.64-4.351-1.985-7.168-1.312-2.816-3.135-4.064-1.825-1.28-4-.96-2.145.288-3.456 2.016-1.28 1.696-1.633 4.736-.351 3.04.288 7.36.673 4.288 1.985 7.104 1.343 2.816 3.167 4.096 1.826 1.28 3.968.992m28.709-15.04q0-4.48 1.28-7.488 1.28-3.04 3.328-4.576 2.08-1.536 4.384-1.536 2.815 0 4.32 1.664 1.536 1.632 1.536 4.704 0 2.688-1.184 4-1.152 1.312-2.944 1.312t-2.72-.96q-.896-.96-.928-2.752v-1.12q-.031-.992-.448-1.472-.416-.512-1.408-.512-1.088 0-2.08.96-.992.928-1.632 2.848t-.64 4.896zm.544-11.968.32 8.512v16.096q0 .705.288 1.088.32.353 1.088.48l2.88.48q.545.096.8.352.255.225.256.64 0 .448-.32.704-.32.224-.928.224H71.325q-.64 0-.928-.256a.86.86 0 0 1-.288-.672q0-.32.192-.544.225-.256.704-.416l1.408-.32q.544-.128.768-.512.255-.384.256-1.12V23.488q0-.608-.192-.864-.192-.288-.64-.352l-1.856-.064q-.416-.096-.608-.288a.8.8 0 0 1-.192-.544.78.78 0 0 1 .224-.576q.255-.256.832-.448l7.072-2.144q1.088-.416 1.6-.544t.8-.128q.511 0 .768.352.255.352.352 1.088m44.435 6.72q0 1.76-1.184 2.944-1.152 1.152-3.104 1.152-1.92 0-2.976-1.088-1.056-1.12-1.056-3.008v-1.504q0-2.112-1.248-3.36-1.217-1.28-3.36-1.28-1.953 0-3.488 1.28-1.536 1.248-2.4 3.584t-.864 5.6q0 4.096 1.312 6.912 1.311 2.784 3.584 4.256 2.271 1.44 5.184 1.44 2.815 0 4.864-1.184 2.047-1.184 3.072-3.488.351-.448.576-.608a.96.96 0 0 1 .512-.16q.351 0 .512.32.16.32.128.768-.32 2.88-2.048 5.152-1.696 2.273-4.48 3.584-2.784 1.28-6.368 1.28-4.257 0-7.584-1.792-3.296-1.792-5.216-5.12-1.89-3.328-1.889-7.936 0-4.575 1.953-8.192 1.951-3.648 5.44-5.76 3.488-2.145 8.192-2.144 3.744 0 6.4 1.12 2.688 1.12 4.096 3.04 1.44 1.888 1.44 4.192M141.67 1.44v42.208q0 .8.224 1.184.256.384.768.512l1.408.32q.448.16.64.416.224.224.224.544 0 .448-.288.704-.288.224-.928.224h-12.704q-.608 0-.896-.224-.288-.255-.288-.704 0-.32.192-.544.224-.256.704-.416l1.44-.32q.512-.128.736-.512.256-.384.256-1.152V6.016q0-.576-.192-.832-.192-.288-.64-.352l-1.824-.064q-.416-.096-.608-.288a.8.8 0 0 1-.192-.544q0-.384.224-.608t.832-.416l7.104-2.336a19 19 0 0 1 1.44-.448q.512-.128.896-.128.736 0 1.088.416.384.384.384 1.024m34.846 28.064q0 1.184-.672 1.824t-1.984.64h-19.936v-1.76h12.864q1.216 0 1.216-1.152 0-4.768-1.536-7.136t-3.968-2.368q-1.92 0-3.36 1.216-1.44 1.184-2.272 3.552-.8 2.368-.8 5.824 0 6.336 2.848 9.504t7.52 3.168q3.007 0 5.184-1.376 2.208-1.376 3.04-3.84.384-.448.608-.608a.9.9 0 0 1 .48-.16q.352 0 .512.32.192.288.16.768-.128 2.88-1.888 5.248-1.728 2.335-4.64 3.744-2.912 1.376-6.656 1.376-4.385 0-7.776-1.824-3.36-1.856-5.28-5.184-1.888-3.36-1.888-7.84 0-4.768 1.856-8.384 1.855-3.616 5.28-5.664 3.456-2.048 8.192-2.048 4.032 0 6.912 1.568t4.416 4.32q1.568 2.72 1.568 6.272"
+								fill="var(--color-vivid-sky-blue)"
+							/>
+						</svg>
+						<p className="text-xs md:text-sm font-mono">
+							&copy; COPYRIGHT VORCLE 2026. ALL RIGHTS RESERVED.
+						</p>
+					</div>
+				</div>
+			</div>
+		</footer>
+	);
 }

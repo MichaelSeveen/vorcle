@@ -1,82 +1,101 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { z } from "zod";
 import {
-  embed,
-  embedMany,
-  generateObject,
-  generateText,
-  type ModelMessage,
-} from "ai";
+	createGoogleGenerativeAI,
+	type GoogleLanguageModelOptions,
+} from "@ai-sdk/google";
+import { embed, embedMany, generateText, type ModelMessage, Output } from "ai";
+import type { z } from "zod";
+import { summarySchema } from "@/lib/zod-schema/meeting-summary-schema";
+import { buildTranscriptAnalysisSystemPrompt } from "../prompts";
 
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_API_KEY,
+	apiKey: process.env.GOOGLE_API_KEY,
 });
 
-const embeddingModel = "text-embedding-004";
-const chatModel = "gemini-1.5-flash-latest";
+const embeddingModel = google.embedding("gemini-embedding-001");
+const chatModel = google("gemini-2.5-pro");
+const MEETING_INSIGHTS_MAX_OUTPUT_TOKENS = 8192;
+const MEETING_INSIGHTS_THINKING_BUDGET = 1024;
+
+function buildEmbeddingProviderOptions(
+	taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
+) {
+	return {
+		google: {
+			outputDimensionality: 1536,
+			taskType,
+		},
+	};
+}
 
 export async function createEmbedding(text: string): Promise<number[]> {
-  const { embedding } = await embed({
-    model: google.textEmbeddingModel(embeddingModel),
-    value: text,
-  });
-  return embedding;
+	const { embedding } = await embed({
+		model: embeddingModel,
+		value: text,
+		providerOptions: buildEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+	});
+	return embedding;
 }
 
 export async function createManyEmbeddings(
-  texts: string[]
+	texts: string[],
 ): Promise<number[][]> {
-  const { embeddings } = await embedMany({
-    model: google.textEmbeddingModel(embeddingModel),
-    values: texts,
-  });
-  return embeddings;
+	if (texts.length === 0) {
+		return [];
+	}
+
+	const { embeddings } = await embedMany({
+		model: embeddingModel,
+		values: texts,
+		maxParallelCalls: 3,
+		providerOptions: buildEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+	});
+	return embeddings;
 }
 
 export async function chatWithAI({
-  system,
-  messages,
+	system,
+	messages,
 }: {
-  system?: string;
-  messages: ModelMessage[];
+	system?: string;
+	messages: ModelMessage[];
 }): Promise<string> {
-  const { text } = await generateText({
-    model: google("gemini-2.5-pro"),
-    system: system,
-    messages: messages,
-    temperature: 0.3,
-    maxOutputTokens: 1000,
-  });
+	const { text } = await generateText({
+		model: chatModel,
+		system: system,
+		messages: messages,
+		temperature: 0.3,
+		maxOutputTokens: 1000,
+	});
 
-  return text;
+	return text;
 }
 
-export const summarySchema = z.object({
-  summary: z
-    .string()
-    .describe(
-      "A clear, concise summary (2-3 sentences) of the main discussion points and decisions."
-    ),
-  actionItems: z
-    .array(z.string())
-    .describe(
-      "A list of specific, actionable tasks mentioned in the meeting. Return an empty array if none are found."
-    ),
-});
-
-export async function generateSummaryAndActionItems(
-  transcriptText: string
+export async function generateMeetingInsights(
+	transcriptText: string,
 ): Promise<z.infer<typeof summarySchema>> {
-  const { object } = await generateObject({
-    model: google(chatModel),
-    system:
-      "You are an AI assistant that analyzes meeting transcripts. Analyze the provided transcript and extract a concise summary and a list of specific action items. Format your response as a JSON object matching the provided schema.",
-    prompt: `Please analyze this meeting transcript:\n\n${transcriptText}`,
-    schema: summarySchema,
-    mode: "json",
-    temperature: 0.3,
-    maxOutputTokens: 1000,
-  });
+	const result = await generateText({
+		model: chatModel,
+		system: buildTranscriptAnalysisSystemPrompt(),
+		prompt: `Analyze the following meeting transcript:\n\n${transcriptText}`,
+		output: Output.object({
+			schema: summarySchema,
+		}),
+		providerOptions: {
+			google: {
+				thinkingConfig: {
+					thinkingBudget: MEETING_INSIGHTS_THINKING_BUDGET,
+				},
+			} satisfies GoogleLanguageModelOptions,
+		},
+		temperature: 0.2,
+		maxOutputTokens: MEETING_INSIGHTS_MAX_OUTPUT_TOKENS,
+	});
 
-  return object;
+	if (result.finishReason !== "stop") {
+		throw new Error(
+			`Gemini did not complete meeting insight generation. finishReason=${result.finishReason}; rawFinishReason=${result.rawFinishReason ?? "unknown"}.`,
+		);
+	}
+
+	return result.output;
 }

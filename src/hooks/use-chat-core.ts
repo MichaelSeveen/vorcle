@@ -1,139 +1,135 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTokenUsage } from "@/app/(workspace)/_context";
 
 export interface ChatMessage {
-  id: number;
-  content: string;
-  isBot: boolean;
-  timestamp: Date;
+	id: number;
+	content: string;
+	isBot: boolean;
+	timestamp: Date;
 }
 
 interface UseChatCoreOptions {
-  apiEndpoint: string;
-  getRequestBody: (input: string) => void;
+	apiEndpoint: string;
+	getRequestBody: (input: string) => Record<string, unknown>;
+}
+
+function getStringField(data: Record<string, unknown>, field: string) {
+	const value = data[field];
+
+	return typeof value === "string" ? value.trim() : "";
 }
 
 export function useChatCore({
-  apiEndpoint,
-  getRequestBody,
+	apiEndpoint,
+	getRequestBody,
 }: UseChatCoreOptions) {
-  const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+	const [chatInput, setChatInput] = useState("");
+	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const nextMessageId = useRef(0);
 
-  const { canChat, incrementChatUsage } = useTokenUsage();
+	const { canChat, incrementChatUsage } = useTokenUsage();
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || isLoading) {
-      return;
-    }
+	const createMessage = useCallback(
+		(content: string, isBot: boolean): ChatMessage => ({
+			id: ++nextMessageId.current,
+			content,
+			isBot,
+			timestamp: new Date(),
+		}),
+		[],
+	);
 
-    if (!canChat) {
-      return;
-    }
+	const handleSendMessage = useCallback(async () => {
+		const currentInput = chatInput.trim();
 
-    setShowSuggestions(false);
-    setIsLoading(true);
+		if (!currentInput || isLoading) {
+			return;
+		}
 
-    const newMessage: ChatMessage = {
-      id: messages.length + 1,
-      content: chatInput,
-      isBot: false,
-      timestamp: new Date(),
-    };
+		if (!canChat) {
+			return;
+		}
 
-    setMessages([...messages, newMessage]);
+		setIsLoading(true);
 
-    const currentInput = chatInput;
+		setMessages((prev) => [...prev, createMessage(currentInput, false)]);
+		setChatInput("");
 
-    setChatInput("");
+		try {
+			const response = await fetch(apiEndpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(getRequestBody(currentInput)),
+			});
 
-    try {
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(getRequestBody(currentInput)),
-      });
+			const data = (await response.json()) as Record<string, unknown>;
 
-      const data = await response.json();
+			if (response.ok) {
+				await incrementChatUsage();
 
-      if (response.ok) {
-        await incrementChatUsage();
+				const answer =
+					getStringField(data, "answer") ||
+					getStringField(data, "response") ||
+					"I could not read the AI response. Please try asking again.";
+				setMessages((prev) => [...prev, createMessage(answer, true)]);
+			} else {
+				if (data.upgradeRequired) {
+					setMessages((prev) => [
+						...prev,
+						createMessage(
+							`${getStringField(data, "error") || "Chat limit reached"} Open Settings to upgrade your plan and continue chatting.`,
+							true,
+						),
+					]);
+				} else {
+					setMessages((prev) => [
+						...prev,
+						createMessage(
+							getStringField(data, "error") ||
+								"Sorry, I encountered an error. Please try again.",
+							true,
+						),
+					]);
+				}
+			}
+		} catch (error) {
+			console.error("chat error:", error);
+			setMessages((prev) => [
+				...prev,
+				createMessage(
+					"Sorry, I could not connect to the server. Please check your connection and try again.",
+					true,
+				),
+			]);
+		} finally {
+			setIsLoading(false);
+		}
+	}, [
+		apiEndpoint,
+		canChat,
+		chatInput,
+		createMessage,
+		getRequestBody,
+		incrementChatUsage,
+		isLoading,
+	]);
 
-        const botMessage: ChatMessage = {
-          id: messages.length + 2,
-          content: data.answer || data.response,
-          isBot: true,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, botMessage]);
-      } else {
-        if (data.upgradeRequired) {
-          const upgradeMessage: ChatMessage = {
-            id: messages.length + 2,
-            content: `${data.error} Visit the pricing page to upgrade your plan and continue chatting!`,
-            isBot: true,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, upgradeMessage]);
-        } else {
-          const errorMessage: ChatMessage = {
-            id: messages.length + 2,
-            content:
-              data.error || "Sorry, I encountered an error. Please try again.",
-            isBot: true,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        }
-      }
-    } catch (error) {
-      console.error("chat error:", error);
-      const errorMessage: ChatMessage = {
-        id: messages.length + 2,
-        content:
-          "Sorry, I could not connect to the server. Please check your connection and try again.",
-        isBot: true,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+	const handleInputChange = (value: string) => {
+		setChatInput(value);
+	};
 
-  const handleSuggestionClick = (suggestion: string) => {
-    if (!canChat) {
-      return;
-    }
-
-    setShowSuggestions(false);
-    setChatInput(suggestion);
-  };
-
-  const handleInputChange = (value: string) => {
-    setChatInput(value);
-
-    if (value.length > 0 && showSuggestions) {
-      setShowSuggestions(false);
-    }
-  };
-
-  return {
-    chatInput,
-    setChatInput,
-    messages,
-    setMessages,
-    showSuggestions,
-    setShowSuggestions,
-    isLoading,
-    setIsLoading,
-    handleSendMessage,
-    handleSuggestionClick,
-    handleInputChange,
-    canChat,
-  };
+	return {
+		chatInput,
+		setChatInput,
+		messages,
+		setMessages,
+		isLoading,
+		setIsLoading,
+		handleSendMessage,
+		handleInputChange,
+		canChat,
+	};
 }

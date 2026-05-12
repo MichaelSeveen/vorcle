@@ -1,46 +1,34 @@
-import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, Link } from "@heroui/react";
+import { CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { segments } from "@/config/segments";
-import { CheckCircle, ArrowRight } from "lucide-react";
-import Link from "next/link";
 
 export default function SuccessPage() {
-  return (
-    <div className="min-h-svh flex items-center justify-center p-6">
-      <Card className="max-w-md w-full text-center shadow-2xl border-0  backdrop-blur-sm">
-        <CardHeader>
-          <div className="mx-auto mb-4 relative">
-            <CheckCircle className="size-14 text-green-600 mx-auto relative" />
-          </div>
-          <CardTitle className="text-2xl">Payment Successful!</CardTitle>
-          <CardDescription className="text-base">
-            Thank you for your subscription.
-          </CardDescription>
-        </CardHeader>
+	return (
+		<div className="min-h-svh flex items-center justify-center p-6">
+			<Card className="max-w-md w-full text-center shadow-2xl border-0  backdrop-blur-sm">
+				<Card.Header>
+					<div className="mx-auto mb-4 relative">
+						<HugeiconsIcon
+							icon={CheckmarkCircle02Icon}
+							className="size-14 text-green-600"
+						/>
+					</div>
+					<Card.Title className="text-2xl">Payment Successful!</Card.Title>
+					<Card.Description className="text-base">
+						Thank you for your subscription.
+					</Card.Description>
+				</Card.Header>
 
-        <CardContent className="space-y-6">
-          <Link
-            href={segments.workspace.home}
-            className={buttonVariants({
-              className: "w-full",
-            })}
-          >
-            Workspace
-            <ArrowRight />
-          </Link>
+				<Card.Content className="space-y-6">
+					<Link href={segments.workspace.home}>Workspace</Link>
 
-          <p className="text-xs text-muted-foreground">
-            You&apos;ll receive a confirmation email with your receipt and
-            further steps.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+					<p className="text-xs text-foreground">
+						You&apos;ll receive a confirmation email with your receipt and
+						further steps.
+					</p>
+				</Card.Content>
+			</Card>
+		</div>
+	);
 }

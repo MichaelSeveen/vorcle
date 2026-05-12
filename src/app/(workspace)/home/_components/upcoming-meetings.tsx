@@ -1,184 +1,279 @@
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Switch } from "@/components/align-ui/switch";
 import {
-  AlertCircleIcon,
-  CalendarSync,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+	Alert,
+	Button,
+	Card,
+	Label,
+	Link,
+	Spinner,
+	Switch,
+} from "@heroui/react";
+import { Link04Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { format } from "date-fns";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import { EmptyStateIcon, GoogleCalendarIcon } from "@/components/custom-icons";
-import Link from "next/link";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { DuoClockIcon } from "@/components/custom-icons/duotone";
-import { GoogleCalendarEvent } from "@/config/types";
+import type { GoogleCalendarEvent } from "@/config/types";
+import { cn } from "@/lib/utils";
 
 interface UpcomingMeetingsProps {
-  upcomingEvents: GoogleCalendarEvent[];
-  calendarConnected: boolean;
-  error: string | null;
-  loading: boolean;
-  meetingBotState: { [key: string]: boolean };
-  onBotToggle: (eventId: string) => void;
-  onConnectCalendar: () => void;
+	upcomingEvents: GoogleCalendarEvent[];
+	calendarConnected: boolean;
+	error: string | null;
+	loading: boolean;
+	meetingBotState: { [key: string]: boolean };
+	pendingToggleByEventId: { [key: string]: boolean };
+	onBotToggle: (eventId: string) => void;
+	onConnectCalendar: () => void;
 }
 
 function UpcomingMeetingsError({ error }: { error: string }) {
-  return (
-    <Alert variant="destructive">
-      <AlertCircleIcon />
-      <AlertTitle>Upcoming meetings error</AlertTitle>
-      <AlertDescription>{error}</AlertDescription>
-    </Alert>
-  );
+	return (
+		<Alert status="danger">
+			<Alert.Indicator />
+			<Alert.Content>
+				<Alert.Title>Upcoming meetings error</Alert.Title>
+				<Alert.Description>{error}</Alert.Description>
+			</Alert.Content>
+		</Alert>
+	);
 }
 
-// function UpcomingMeetingsSkeleton() {
-//   return (
-//     <Skeleton className="p-6">
-//       <Skeleton className="w-12 h-12 mb-3" />
-//       <Skeleton className="h-4 w-3/4 mb-2" />
-//       <Skeleton className="h-3 w-1/2 mb-4" />
-//       <Skeleton className="h-8 w-full" />
-//     </Skeleton>
-//   );
-// }
+function getBotStatusMessage(
+	event: GoogleCalendarEvent,
+	isPending: boolean,
+	botEnabled: boolean,
+) {
+	if (isPending) {
+		return {
+			label: "Updating bot...",
+			tone: "text-foreground",
+		};
+	}
+
+	if (!botEnabled) {
+		return {
+			label: "Bot disabled for this meeting.",
+			tone: "text-foreground",
+		};
+	}
+
+	if (event.botFailureMessage) {
+		return {
+			label: event.botFailureMessage,
+			tone: "text-destructive",
+		};
+	}
+
+	switch (event.botStatus) {
+		case "queued":
+			return {
+				label: "Bot queued and ready to join.",
+				tone: "text-emerald-600",
+			};
+		case "in_call_recording":
+			return {
+				label: "Bot is in the meeting and recording.",
+				tone: "text-emerald-600",
+			};
+		case "blocked":
+			return {
+				label: "Bot is blocked until the issue is resolved.",
+				tone: "text-amber-600",
+			};
+		case "canceled":
+			return {
+				label: "Bot canceled for this meeting.",
+				tone: "text-foreground",
+			};
+		default:
+			return {
+				label: event.botSent
+					? "Bot has been scheduled."
+					: "Bot will be sent automatically before the meeting starts.",
+				tone: "text-foreground",
+			};
+	}
+}
 
 function ConnectCalendarCard({
-  onConnect,
-  loading,
+	error,
+	onConnect,
+	loading,
 }: {
-  onConnect: () => void;
-  loading: boolean;
+	error: string | null;
+	onConnect: () => void;
+	loading: boolean;
 }) {
-  return (
-    <div className="flex items-center justify-center my-20">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <GoogleCalendarIcon className="mx-auto size-[4rem]" />
-          <CardTitle className="text-center">Connect Calendar</CardTitle>
-          <CardDescription className="text-center">
-            Connect your google calendar to see upcoming meetings
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button
-            onClick={onConnect}
-            disabled={loading}
-            className="w-full cursor-pointer"
-          >
-            {loading ? <Loader2 className="animate-spin" /> : <CalendarSync />}
-            {loading ? "Connecting..." : "Connect"}
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+	return (
+		<div className="space-y-4 my-20">
+			{error ? <UpcomingMeetingsError error={error} /> : null}
+			<div className="flex items-center justify-center">
+				<Card className="w-full max-w-sm">
+					<Card.Header>
+						<GoogleCalendarIcon className="mx-auto size-[4rem]" />
+						<Card.Title className="text-center">Connect Calendar</Card.Title>
+						<Card.Description className="text-center">
+							Connect your Google Calendar to sync your meetings.
+						</Card.Description>
+					</Card.Header>
+					<Card.Footer>
+						<Button
+							onPress={onConnect}
+							isPending={loading}
+							fullWidth
+							className="w-full cursor-pointer"
+						>
+							{({ isPending }) => (
+								<>
+									{isPending ? (
+										<Spinner color="current" size="sm" />
+									) : (
+										<HugeiconsIcon icon={Link04Icon} />
+									)}
+									{isPending ? "Connecting..." : "Connect"}
+								</>
+							)}
+						</Button>
+					</Card.Footer>
+				</Card>
+			</div>
+		</div>
+	);
 }
 
 function EmptyMeetingsState() {
-  return (
-    <div className="flex flex-col items-center justify-center my-20">
-      <EmptyStateIcon className="h-[8rem] w-[8.5rem]" />
-      <h3 className="font-medium mb-2 text-foreground text-xl">
-        No upcoming meetings.
-      </h3>
-      <p className="text-muted-foreground text-sm">Your calendar is clear.</p>
-    </div>
-  );
+	return (
+		<div className="flex flex-col items-center justify-center my-20">
+			<EmptyStateIcon className="h-[8rem] w-[8.5rem]" />
+			<h3 className="font-medium mb-2 text-foreground text-xl">
+				No upcoming meetings.
+			</h3>
+			<p className="text-foreground text-sm">Your calendar is clear.</p>
+		</div>
+	);
 }
 
 function MeetingsList({
-  events,
-  meetingBotState,
-  onBotToggle,
+	events,
+	meetingBotState,
+	pendingToggleByEventId,
+	onBotToggle,
 }: {
-  events: GoogleCalendarEvent[];
-  meetingBotState: { [key: string]: boolean };
-  onBotToggle: (eventId: string) => void;
+	events: GoogleCalendarEvent[];
+	meetingBotState: { [key: string]: boolean };
+	pendingToggleByEventId: { [key: string]: boolean };
+	onBotToggle: (eventId: string) => void;
 }) {
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 items-start">
-        {events.map((event) => (
-          <div
-            key={event.id}
-            className="bg-card rounded-lg ring ring-accent shadow-sm p-4"
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-medium text-sm md:text-base">
-                  {event.summary || "No Title"}
-                </h2>
-                <Switch
-                  checked={!!meetingBotState[event.id]}
-                  onCheckedChange={() => onBotToggle(event.id)}
-                  aria-label="Toggle bot for this meeting"
-                />
-              </div>
-              <div className="flex items-center gap-1 text-sm">
-                <DuoClockIcon className="size-4" />
-                <time dateTime={event.start?.date}>
-                  {format(
-                    new Date(event.start?.dateTime || event.start?.date || ""),
-                    "MMM d, h:mm a"
-                  )}
-                </time>
-              </div>
-              {event.attendees && (
-                <p className="text-sm">
-                  <strong>{event.attendees.length}</strong> attendees
-                </p>
-              )}
-              {(event.hangoutLink || event.location) && (
-                <Link
-                  href={event.hangoutLink || event.location || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonVariants({
-                    className: "w-fit",
-                  })}
-                >
-                  <ExternalLink />
-                  Join Meeting
-                </Link>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+	return (
+		<div className="space-y-3">
+			{events.map((event) => {
+				const botEnabled = !!meetingBotState[event.id];
+				const isPending = !!pendingToggleByEventId[event.id];
+				const status = getBotStatusMessage(event, isPending, botEnabled);
+
+				const currentMonth = new Date(
+					event.start?.dateTime || event.start?.date || "",
+				);
+				const formattedMonth = format(currentMonth, "MMM").toUpperCase();
+				const formattedDay = format(currentMonth, "d");
+
+				return (
+					<Card key={event.id} className="w-full items-stretch md:flex-row">
+						<div className="relative h-20 w-full shrink-0 rounded-2xl sm:size-20 flex flex-col">
+							<span className="text-xl">{formattedMonth}</span>
+							<span className="text-red-600">{formattedDay}</span>
+						</div>
+						<div className="flex flex-1 flex-col gap-3">
+							<Card.Header className="gap-1">
+								<div className="flex items-center gap-3 pr-8">
+									<Card.Title>{event.summary || "No Title"}</Card.Title>
+									<p className={cn("text", status.tone)}>{status.label}</p>
+								</div>
+								<Card.Description className="sr-only">
+									The description of the meeting
+								</Card.Description>
+
+								<Switch
+									aria-label="Send the bot to this meeting"
+									className="absolute top-5 right-5"
+									isSelected={botEnabled}
+									onChange={() => onBotToggle(event.id)}
+									isDisabled={isPending}
+								>
+									<Switch.Control>
+										<Switch.Thumb />
+									</Switch.Control>
+									<Switch.Content>
+										<Label className="text-sm">Send Bot</Label>
+									</Switch.Content>
+								</Switch>
+							</Card.Header>
+							<Card.Footer className="mt-auto flex w-full flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+								{event.attendees ? (
+									<div className="flex flex-col">
+										<span className="text-sm font-medium text-foreground">
+											Attendees
+										</span>
+										<span className="text-xs text-muted">
+											{event.attendees.length} attendee
+											{event.attendees.length > 1 ? "s" : ""}
+										</span>
+									</div>
+								) : null}
+
+								{(event.hangoutLink || event.location) && (
+									<Link
+										href={event.hangoutLink || event.location || "#"}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										Join Meeting
+									</Link>
+								)}
+							</Card.Footer>
+						</div>
+					</Card>
+				);
+			})}
+		</div>
+	);
 }
 
 export default function UpcomingMeetings({
-  upcomingEvents,
-  calendarConnected,
-  error,
-  loading,
-  meetingBotState,
-  onBotToggle,
-  onConnectCalendar,
+	upcomingEvents,
+	calendarConnected,
+	error,
+	loading,
+	meetingBotState,
+	pendingToggleByEventId,
+	onBotToggle,
+	onConnectCalendar,
 }: UpcomingMeetingsProps) {
-  if (!calendarConnected)
-    return (
-      <ConnectCalendarCard onConnect={onConnectCalendar} loading={loading} />
-    );
-  if (error) return <UpcomingMeetingsError error={error} />;
-  if (upcomingEvents.length === 0) return <EmptyMeetingsState />;
+	if (!calendarConnected)
+		return (
+			<ConnectCalendarCard
+				error={error}
+				onConnect={onConnectCalendar}
+				loading={loading}
+			/>
+		);
+	if (upcomingEvents.length === 0)
+		return (
+			<div className="space-y-4">
+				{error ? <UpcomingMeetingsError error={error} /> : null}
+				<EmptyMeetingsState />
+			</div>
+		);
 
-  return (
-    <MeetingsList
-      events={upcomingEvents}
-      meetingBotState={meetingBotState}
-      onBotToggle={onBotToggle}
-    />
-  );
+	return (
+		<div className="space-y-4">
+			{error ? <UpcomingMeetingsError error={error} /> : null}
+			<MeetingsList
+				events={upcomingEvents}
+				meetingBotState={meetingBotState}
+				pendingToggleByEventId={pendingToggleByEventId}
+				onBotToggle={onBotToggle}
+			/>
+		</div>
+	);
 }

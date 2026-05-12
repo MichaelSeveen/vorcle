@@ -1,36 +1,62 @@
-import { getSortingStateParser } from "@/lib/data-table/parsers";
 import {
-  createSearchParamsCache,
-  parseAsInteger,
-  parseAsString,
-  createParser,
+	createParser,
+	createSearchParamsCache,
+	parseAsInteger,
+	parseAsString,
 } from "nuqs/server";
-import { MeetingTableItems } from "@/config/types";
+import type {
+	MeetingSearchParams,
+	MeetingSearchSort,
+	MeetingSearchSortColumn,
+} from "@/helpers/meetings/search";
 
-export const parseCreatedAt = createParser<number[]>({
-  parse(queryValue) {
-    if (!queryValue) return [];
-    const parts = queryValue.split(",");
-    const nums = parts.map((s) => Number(s)).filter((n) => !Number.isNaN(n));
+const sortableMeetingColumns = new Set<MeetingSearchSortColumn>([
+	"createdAt",
+	"endTime",
+	"startTime",
+	"title",
+	"updatedAt",
+]);
 
-    return nums.length > 0 ? nums : [];
-  },
+function isMeetingSearchSort(value: unknown): value is MeetingSearchSort {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
 
-  serialize(value) {
-    return Array.isArray(value) && value.length > 0 ? value.join(",") : "";
-  },
+	const sort = value as { desc?: unknown; id?: unknown };
+
+	return (
+		typeof sort.id === "string" &&
+		sortableMeetingColumns.has(sort.id as MeetingSearchSortColumn) &&
+		(typeof sort.desc === "boolean" || typeof sort.desc === "undefined")
+	);
+}
+
+const parseMeetingSort = createParser<MeetingSearchSort[]>({
+	parse(queryValue) {
+		if (!queryValue) {
+			return [];
+		}
+
+		try {
+			const value = JSON.parse(queryValue) as unknown;
+
+			return Array.isArray(value) ? value.filter(isMeetingSearchSort) : [];
+		} catch {
+			return [];
+		}
+	},
+	serialize(value) {
+		return value.length > 0 ? JSON.stringify(value) : "";
+	},
 });
 
 export const searchParamsCache = createSearchParamsCache({
-  page: parseAsInteger.withDefault(1),
-  perPage: parseAsInteger.withDefault(10),
-  sort: getSortingStateParser<MeetingTableItems>().withDefault([
-    { id: "createdAt", desc: true },
-  ]),
-  title: parseAsString.withDefault(""),
-  createdAt: parseCreatedAt.withDefault([]),
+	createdAt: parseAsString.withDefault(""),
+	page: parseAsInteger.withDefault(1),
+	perPage: parseAsInteger.withDefault(10),
+	query: parseAsString.withDefault(""),
+	sort: parseMeetingSort.withDefault([]),
 });
 
-export type GetMeetingDataSchema = Awaited<
-  ReturnType<typeof searchParamsCache.parse>
->;
+export type GetMeetingDataSchema = MeetingSearchParams;

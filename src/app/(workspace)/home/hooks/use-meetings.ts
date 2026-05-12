@@ -1,166 +1,241 @@
-import { useCallback, useMemo, useState, useTransition } from "react";
-import { linkSocial } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+	useTransition,
+} from "react";
 import { toggleMeetingBotAction } from "@/app/actions/toggle-meeting-bot-action";
-import { GOOGLE_CALENDAR_SCOPES, GoogleCalendarEvent } from "@/config/types";
+import {
+	GOOGLE_CALENDAR_SCOPES,
+	type GoogleCalendarEvent,
+} from "@/config/types";
+import { linkSocial } from "@/lib/auth-client";
+
+const POLL_INTERVAL_MS = 60_000;
 
 interface UseMeetingsProps {
-  upcomingEvents: {
-    ok: boolean;
-    events: GoogleCalendarEvent[];
-    connected: boolean;
-    source: string;
-  };
-  calendarStatus: {
-    success: boolean;
-    message?: string;
-    connected?: boolean;
-  };
+	upcomingEvents: {
+		ok: boolean;
+		events: GoogleCalendarEvent[];
+		connected: boolean;
+		source: string;
+	};
+	calendarStatus: {
+		success: boolean;
+		message?: string;
+		connected?: boolean;
+	};
 }
 
 interface UseMeetingsReturn {
-  events: GoogleCalendarEvent[];
-  isCalendarConnected: boolean;
-  error: string | null;
-  meetingBotState: Record<string, boolean>;
-  isLinking: boolean;
-  isTogglingBot: boolean;
-  isRefreshing: boolean;
-  refreshEvents: () => void;
-  toggleMeetingBot: (eventId: string) => Promise<void>;
-  linkGoogleCalendar: () => Promise<void>;
+	events: GoogleCalendarEvent[];
+	isCalendarConnected: boolean;
+	error: string | null;
+	meetingBotState: Record<string, boolean>;
+	pendingToggleByEventId: Record<string, boolean>;
+	isLinking: boolean;
+	isTogglingBot: boolean;
+	isRefreshing: boolean;
+	refreshEvents: () => void;
+	toggleMeetingBot: (eventId: string) => Promise<void>;
+	linkGoogleCalendar: () => Promise<void>;
 }
 
 export function useMeetings({
-  upcomingEvents,
-  calendarStatus,
+	upcomingEvents,
+	calendarStatus,
 }: UseMeetingsProps): UseMeetingsReturn {
-  const [error, setError] = useState<string | null>(null);
-  const [isLinking, setIsLinking] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [isRefreshing, startRefreshTransition] = useTransition();
+	const router = useRouter();
+	const [error, setError] = useState<string | null>(null);
+	const [isLinking, setIsLinking] = useState(false);
+	const [isPending, startTransition] = useTransition();
+	const [isRefreshing, startRefreshTransition] = useTransition();
 
-  const [optimisticToggles, setOptimisticToggles] = useState<
-    Record<string, boolean>
-  >({});
+	const [optimisticToggles, setOptimisticToggles] = useState<
+		Record<string, boolean>
+	>({});
+	const [pendingToggleByEventId, setPendingToggleByEventId] = useState<
+		Record<string, boolean>
+	>({});
 
-  const isCalendarConnected = useMemo(
-    () => calendarStatus.success && (calendarStatus.connected ?? false),
-    [calendarStatus.success, calendarStatus.connected]
-  );
+	const isCalendarConnected = useMemo(
+		() => Boolean(calendarStatus.connected ?? upcomingEvents.connected),
+		[calendarStatus.connected, upcomingEvents.connected],
+	);
 
-  const events = useMemo(() => {
-    if (!isCalendarConnected) {
-      return [];
-    }
-    return upcomingEvents.events;
-  }, [upcomingEvents.events, isCalendarConnected]);
+	const events = useMemo(() => {
+		if (!isCalendarConnected) {
+			return [];
+		}
+		return upcomingEvents.events;
+	}, [upcomingEvents.events, isCalendarConnected]);
 
-  const refreshEvents = useCallback(() => {
-    startRefreshTransition(() => {
-      window.location.reload();
-    });
-  }, []);
+	const refreshRoute = useCallback(() => {
+		router.refresh();
+	}, [router]);
 
-  const meetingBotState = useMemo(() => {
-    const state: Record<string, boolean> = {};
+	const refreshEvents = useCallback(() => {
+		startRefreshTransition(() => {
+			refreshRoute();
+		});
+	}, [refreshRoute]);
 
-    events.forEach((event) => {
-      state[event.id] = optimisticToggles[event.id] ?? event.botScheduled;
-    });
+	const refreshEventsInBackground = useCallback(() => {
+		refreshRoute();
+	}, [refreshRoute]);
 
-    return state;
-  }, [events, optimisticToggles]);
+	useEffect(() => {
+		let id: ReturnType<typeof setInterval>;
 
-  const toggleMeetingBot = useCallback(
-    async (eventId: string) => {
-      const event = events.find((e) => e.id === eventId);
-      if (!event?.meetingId) {
-        console.warn(`Event ${eventId} not found or missing meetingId`);
-        return;
-      }
+		function startPolling() {
+			id = setInterval(() => {
+				if (!document.hidden) {
+					refreshEventsInBackground();
+				}
+			}, POLL_INTERVAL_MS);
+		}
 
-      const currentValue = meetingBotState[eventId] ?? false;
-      const newValue = !currentValue;
+		function handleVisibility() {
+			clearInterval(id);
+			if (!document.hidden) {
+				// Background refreshes should not put the manual sync button into a loading state.
+				refreshEventsInBackground();
+				startPolling();
+			}
+		}
 
-      setOptimisticToggles((prev) => ({ ...prev, [eventId]: newValue }));
+		startPolling();
+		document.addEventListener("visibilitychange", handleVisibility);
 
-      startTransition(async () => {
-        try {
-          const result = await toggleMeetingBotAction(
-            event.meetingId,
-            newValue
-          );
+		return () => {
+			clearInterval(id);
+			document.removeEventListener("visibilitychange", handleVisibility);
+		};
+	}, [refreshEventsInBackground]);
 
-          if (!result?.success) {
-            setOptimisticToggles((prev) => {
-              const next = { ...prev };
-              delete next[eventId];
-              return next;
-            });
+	const meetingBotState = useMemo(() => {
+		const state: Record<string, boolean> = {};
 
-            const errorMsg = result?.message || "Failed to toggle meeting bot";
-            setError(errorMsg);
-            console.error("Toggle meeting bot failed:", result);
-          } else {
-            setOptimisticToggles((prev) => {
-              const next = { ...prev };
-              delete next[eventId];
-              return next;
-            });
+		events.forEach((event) => {
+			state[event.id] = optimisticToggles[event.id] ?? event.botScheduled;
+		});
 
-            refreshEvents();
-          }
-        } catch (err) {
-          setOptimisticToggles((prev) => {
-            const next = { ...prev };
-            delete next[eventId];
-            return next;
-          });
+		return state;
+	}, [events, optimisticToggles]);
 
-          const errorMsg =
-            err instanceof Error ? err.message : "Failed to toggle meeting bot";
-          setError(errorMsg);
-          console.error("Toggle meeting bot error:", err);
-        }
-      });
-    },
-    [events, meetingBotState, refreshEvents]
-  );
+	const toggleMeetingBot = useCallback(
+		async (eventId: string) => {
+			const event = events.find((e) => e.id === eventId);
+			if (!event?.meetingId) {
+				console.warn(`Event ${eventId} not found or missing meetingId`);
+				return;
+			}
 
-  const linkGoogleCalendar = useCallback(async () => {
-    setIsLinking(true);
-    setError(null);
+			const currentValue = meetingBotState[eventId] ?? false;
+			const newValue = !currentValue;
 
-    try {
-      await linkSocial({
-        provider: "google",
-        scopes: [...GOOGLE_CALENDAR_SCOPES],
-        callbackURL: "/api/calendar/connect-callback",
-      });
+			setError(null);
+			setOptimisticToggles((prev) => ({ ...prev, [eventId]: newValue }));
+			setPendingToggleByEventId((prev) => ({ ...prev, [eventId]: true }));
 
-      refreshEvents();
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : "Failed to connect to your calendar";
-      setError(errorMsg);
-      console.error("Error connecting calendar:", err);
-    } finally {
-      setIsLinking(false);
-    }
-  }, [refreshEvents]);
+			startTransition(async () => {
+				try {
+					const result = await toggleMeetingBotAction(
+						event.meetingId,
+						newValue,
+					);
 
-  return {
-    events,
-    isCalendarConnected,
-    error,
-    meetingBotState,
-    isLinking,
-    isRefreshing,
-    refreshEvents,
-    isTogglingBot: isPending,
-    toggleMeetingBot,
-    linkGoogleCalendar,
-  };
+					if (!result?.success) {
+						setOptimisticToggles((prev) => {
+							const next = { ...prev };
+							delete next[eventId];
+							return next;
+						});
+						setPendingToggleByEventId((prev) => {
+							const next = { ...prev };
+							delete next[eventId];
+							return next;
+						});
+
+						const errorMsg =
+							result?.error ||
+							result?.message ||
+							"Failed to toggle meeting bot";
+						setError(errorMsg);
+						console.error("Toggle meeting bot failed:", result);
+					} else {
+						setOptimisticToggles((prev) => {
+							const next = { ...prev };
+							delete next[eventId];
+							return next;
+						});
+						setPendingToggleByEventId((prev) => {
+							const next = { ...prev };
+							delete next[eventId];
+							return next;
+						});
+
+						refreshEvents();
+					}
+				} catch (err) {
+					setOptimisticToggles((prev) => {
+						const next = { ...prev };
+						delete next[eventId];
+						return next;
+					});
+					setPendingToggleByEventId((prev) => {
+						const next = { ...prev };
+						delete next[eventId];
+						return next;
+					});
+
+					const errorMsg =
+						err instanceof Error ? err.message : "Failed to toggle meeting bot";
+					setError(errorMsg);
+					console.error("Toggle meeting bot error:", err);
+				}
+			});
+		},
+		[events, meetingBotState, refreshEvents],
+	);
+
+	const linkGoogleCalendar = useCallback(async () => {
+		setIsLinking(true);
+		setError(null);
+
+		try {
+			await linkSocial({
+				provider: "google",
+				scopes: [...GOOGLE_CALENDAR_SCOPES],
+				callbackURL: "/api/calendar/connect-callback",
+			});
+
+			refreshEvents();
+		} catch (err) {
+			const errorMsg =
+				err instanceof Error
+					? err.message
+					: "Failed to connect to your calendar";
+			setError(errorMsg);
+			console.error("Error connecting calendar:", err);
+		} finally {
+			setIsLinking(false);
+		}
+	}, [refreshEvents]);
+
+	return {
+		events,
+		isCalendarConnected,
+		error,
+		meetingBotState,
+		pendingToggleByEventId,
+		isLinking,
+		isRefreshing,
+		refreshEvents,
+		isTogglingBot: isPending,
+		toggleMeetingBot,
+		linkGoogleCalendar,
+	};
 }

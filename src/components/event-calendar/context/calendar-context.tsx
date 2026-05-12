@@ -1,340 +1,344 @@
 "use client";
 
-import { createContext, useContext, useState, useMemo, useEffect } from "react";
-import { isSameDay, parseISO } from "date-fns";
-import { create, remove, update } from "@/app/actions/event-calendar-actions";
-import { useLocalStorage } from "../config/hooks";
-import { CalendarView, EventColor, Event, User } from "../config/types";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { create, remove, update } from "@/app/actions/event-calendar-actions";
+import {
+	mergeCalendarEventSources,
+	sortCalendarEvents,
+} from "@/helpers/event-calendar/normalize";
+import {
+	expandCalendarEventsInRange,
+	getVisibleRangeForView,
+} from "@/helpers/event-calendar/recurrence";
+import { useLocalStorage } from "../config/hooks";
+import {
+	CALENDAR_SETTINGS_STORAGE_KEY,
+	type CalendarSettings,
+	DEFAULT_CALENDAR_SETTINGS,
+} from "../config/settings";
+import type {
+	CalendarView,
+	Event,
+	EventColor,
+	ManualEventInput,
+	User,
+} from "../config/types";
+import { shouldUseMultiDayEventLane } from "../config/utils";
 
 interface CalendarContext {
-  selectedDate: Date | null;
-  view: CalendarView;
-  setView: (view: CalendarView) => void;
-  agendaModeGroupBy: "date" | "color";
-  setAgendaModeGroupBy: (groupBy: "date" | "color") => void;
-  use24HourFormat: boolean;
-  toggleTimeFormat: () => void;
-  setSelectedDate: (date: Date | undefined | null) => void;
-  selectedUserId: User["id"] | "all";
-  setSelectedUserId: (userId: User["id"] | "all") => void;
-  badgeVariant: "dot" | "colored";
-  setBadgeVariant: (variant: "dot" | "colored") => void;
-  selectedColors: EventColor[];
-  filterEventsBySelectedColors: (colors: EventColor) => void;
-  filterEventsBySelectedUser: (userId: User["id"] | "all") => void;
-  users: User[];
-  allEvents: Event[];
-  filteredEvents: Event[];
-  singleDayEvents: Event[];
-  multiDayEvents: Event[];
-  addEvent: (event: Omit<Event, "id" | "user">) => Promise<void>;
-  updateEvent: (event: Event) => Promise<void>;
-  removeEvent: (eventId: string) => Promise<void>;
-  clearFilter: () => void;
+	selectedDate: Date | null;
+	view: CalendarView;
+	setView: (view: CalendarView) => void;
+	agendaModeGroupBy: "date" | "color";
+	setAgendaModeGroupBy: (groupBy: "date" | "color") => void;
+	use24HourFormat: boolean;
+	toggleTimeFormat: () => void;
+	setSelectedDate: (date: Date | undefined | null) => void;
+	selectedUserId: User["id"] | "all";
+	setSelectedUserId: (userId: User["id"] | "all") => void;
+	badgeVariant: "dot" | "colored";
+	setBadgeVariant: (variant: "dot" | "colored") => void;
+	showGoogleOverlay: boolean;
+	setShowGoogleOverlay: (enabled: boolean) => void;
+	remindersEnabled: boolean;
+	setRemindersEnabled: (enabled: boolean) => void;
+	reminderLeadMinutes: number;
+	setReminderLeadMinutes: (minutes: number) => void;
+	selectedColors: EventColor[];
+	filterEventsBySelectedColors: (colors: EventColor) => void;
+	filterEventsBySelectedUser: (userId: User["id"] | "all") => void;
+	users: User[];
+	allEvents: Event[];
+	filteredEvents: Event[];
+	singleDayEvents: Event[];
+	multiDayEvents: Event[];
+	addEvent: (event: ManualEventInput) => Promise<void>;
+	updateEvent: (event: Event) => Promise<void>;
+	removeEvent: (eventId: string) => Promise<void>;
+	getSourceEventById: (sourceId: string) => Event | undefined;
+	clearFilter: () => void;
 }
 
-interface CalendarSettings {
-  badgeVariant: "dot" | "colored";
-  view: CalendarView;
-  use24HourFormat: boolean;
-  agendaModeGroupBy: "date" | "color";
-}
-
-const DEFAULT_SETTINGS: CalendarSettings = {
-  badgeVariant: "colored",
-  view: "month",
-  use24HourFormat: true,
-  agendaModeGroupBy: "date",
-};
-
-const CalendarContext = createContext({} as CalendarContext);
+const CalendarContext = createContext<CalendarContext | undefined>(undefined);
 
 export function CalendarProvider({
-  children,
-  users,
-  events,
-  badge = "colored",
-  view = "month",
+	children,
+	users,
+	events,
+	badge = "colored",
+	view = "month",
 }: {
-  children: React.ReactNode;
-  users: User[];
-  events: Event[];
-  view?: CalendarView;
-  badge?: "dot" | "colored";
+	children: React.ReactNode;
+	users: User[];
+	events: Event[];
+	view?: CalendarView;
+	badge?: "dot" | "colored";
 }) {
-  const [settings, setSettings] = useLocalStorage<CalendarSettings>(
-    "calendar-settings",
-    {
-      ...DEFAULT_SETTINGS,
-      badgeVariant: badge,
-      view: view,
-    }
-  );
+	const [settings, setSettings] = useLocalStorage<CalendarSettings>(
+		CALENDAR_SETTINGS_STORAGE_KEY,
+		{
+			...DEFAULT_CALENDAR_SETTINGS,
+			badgeVariant: badge,
+			view,
+		},
+	);
+	const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+	const [selectedUserId, setSelectedUserId] = useState<User["id"] | "all">(
+		"all",
+	);
+	const [selectedColors, setSelectedColors] = useState<EventColor[]>([]);
+	const [manualAndMeetingEvents, setManualAndMeetingEvents] = useState<Event[]>(
+		events || [],
+	);
+	const [googleOverlayEvents, setGoogleOverlayEvents] = useState<Event[]>([]);
 
-  const [badgeVariant, setBadgeVariantState] = useState<"dot" | "colored">(
-    settings.badgeVariant
-  );
-  const [currentView, setCurrentViewState] = useState<CalendarView>(
-    settings.view
-  );
-  const [use24HourFormat, setUse24HourFormatState] = useState<boolean>(
-    settings.use24HourFormat
-  );
-  const [agendaModeGroupBy, setAgendaModeGroupByState] = useState<
-    "date" | "color"
-  >(settings.agendaModeGroupBy);
+	const visibleRange = useMemo(() => {
+		if (!selectedDate) {
+			return null;
+		}
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<User["id"] | "all">(
-    "all"
-  );
-  const [selectedColors, setSelectedColors] = useState<EventColor[]>([]);
+		return getVisibleRangeForView(settings.view, selectedDate);
+	}, [selectedDate, settings.view]);
 
-  const [allEvents, setAllEvents] = useState<Event[]>(events || []);
+	useEffect(() => {
+		if (!settings.showGoogleOverlay || !visibleRange) {
+			setGoogleOverlayEvents([]);
+			return;
+		}
 
-  useEffect(() => {
-    if (selectedDate === null) {
-      setSelectedDate(new Date());
-    }
-  }, [selectedDate]);
+		const controller = new AbortController();
+		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+		const currentVisibleRange = visibleRange;
 
-  const updateSettings = (newPartialSettings: Partial<CalendarSettings>) => {
-    setSettings({
-      ...settings,
-      ...newPartialSettings,
-    });
-  };
+		async function loadGoogleOverlay() {
+			try {
+				const searchParams = new URLSearchParams({
+					from: currentVisibleRange.start.toISOString(),
+					to: currentVisibleRange.end.toISOString(),
+					timeZone,
+				});
+				const response = await fetch(
+					`/api/calendar/google-overlay?${searchParams.toString()}`,
+					{
+						signal: controller.signal,
+					},
+				);
 
-  const setBadgeVariant = (variant: "dot" | "colored") => {
-    setBadgeVariantState(variant);
-    updateSettings({ badgeVariant: variant });
-  };
+				if (!response.ok) {
+					throw new Error(`Google overlay request failed: ${response.status}`);
+				}
 
-  const setView = (newView: CalendarView) => {
-    setCurrentViewState(newView);
-    updateSettings({ view: newView });
-  };
+				const data = (await response.json()) as { events?: Event[] };
 
-  const toggleTimeFormat = () => {
-    const newValue = !use24HourFormat;
-    setUse24HourFormatState(newValue);
-    updateSettings({ use24HourFormat: newValue });
-  };
+				if (!controller.signal.aborted) {
+					setGoogleOverlayEvents(sortCalendarEvents(data.events ?? []));
+				}
+			} catch (error) {
+				if (!controller.signal.aborted) {
+					console.error("Failed to load Google overlay events", error);
+					setGoogleOverlayEvents([]);
+				}
+			}
+		}
 
-  const setAgendaModeGroupBy = (groupBy: "date" | "color") => {
-    setAgendaModeGroupByState(groupBy);
-    updateSettings({ agendaModeGroupBy: groupBy });
-  };
+		void loadGoogleOverlay();
 
-  const handleSelectDate = (date: Date | undefined | null) => {
-    if (!date) return;
-    setSelectedDate(date);
-  };
+		return () => {
+			controller.abort();
+		};
+	}, [settings.showGoogleOverlay, visibleRange]);
 
-  const addEvent = async (event: Omit<Event, "id" | "user">) => {
-    const { success, error, event: newEvent } = await create(event);
+	useEffect(() => {
+		setManualAndMeetingEvents(events || []);
+	}, [events]);
 
-    if (success && newEvent) {
-      setAllEvents((prev) => [...prev, newEvent]);
-      toast.success("Event created successfully");
-    }
+	const updateSettings = (nextSettings: Partial<CalendarSettings>) => {
+		setSettings((currentSettings) => ({
+			...currentSettings,
+			...nextSettings,
+		}));
+	};
 
-    if (!success) {
-      toast.error(error);
-    }
-  };
+	const allEvents = useMemo(() => {
+		if (!visibleRange) {
+			return [];
+		}
 
-  const updateEvent = async (event: Event) => {
-    const { success, error, event: updatedEvent } = await update(event);
+		const mergedEvents = settings.showGoogleOverlay
+			? mergeCalendarEventSources(manualAndMeetingEvents, googleOverlayEvents)
+			: manualAndMeetingEvents;
 
-    if (success && updatedEvent) {
-      toast.success("Event updated successfully");
-      setAllEvents((prev) =>
-        prev.map((e) => (e.id === event.id ? updatedEvent : e))
-      );
-    }
+		return expandCalendarEventsInRange(
+			mergedEvents,
+			visibleRange.start,
+			visibleRange.end,
+		);
+	}, [
+		googleOverlayEvents,
+		manualAndMeetingEvents,
+		settings.showGoogleOverlay,
+		visibleRange,
+	]);
 
-    if (!success) {
-      toast.error(error);
-    }
-  };
+	const filteredEvents = useMemo(() => {
+		let currentEvents = allEvents.filter((event) => {
+			return (
+				selectedUserId === "all" ||
+				event.user.id === selectedUserId ||
+				(Array.isArray(event.attendees) &&
+					event.attendees.some((attendee) => attendee.id === selectedUserId))
+			);
+		});
 
-  const removeEvent = async (eventId: string) => {
-    setAllEvents((prev) => prev.filter((e) => e.id !== eventId));
-    const { success, error } = await remove(eventId);
+		if (selectedColors.length > 0) {
+			currentEvents = currentEvents.filter((event) =>
+				selectedColors.includes(event.color),
+			);
+		}
 
-    if (success) {
-      toast.success("Event deleted successfully");
-    }
+		return currentEvents;
+	}, [allEvents, selectedColors, selectedUserId]);
 
-    if (!success) {
-      toast.error(error);
-    }
-  };
+	const singleDayEvents = useMemo(
+		() => filteredEvents.filter((event) => !shouldUseMultiDayEventLane(event)),
+		[filteredEvents],
+	);
 
-  const clearFilter = () => {
-    setSelectedColors([]);
-    setSelectedUserId("all");
-  };
+	const multiDayEvents = useMemo(
+		() => filteredEvents.filter((event) => shouldUseMultiDayEventLane(event)),
+		[filteredEvents],
+	);
 
-  const filteredEvents = useMemo(() => {
-    if (!selectedDate) return [];
+	const handleSelectDate = (date: Date | undefined | null) => {
+		if (!date) return;
+		setSelectedDate(date);
+	};
 
-    let dateAndUserFiltered = allEvents.filter((event) => {
-      const eventStartDate = parseISO(event.startDate);
-      const eventEndDate = parseISO(event.endDate);
-      const isUserMatch =
-        selectedUserId === "all" ||
-        event.user.id === selectedUserId ||
-        (Array.isArray(event.attendees) &&
-          event.attendees.some((att) => att.id === selectedUserId));
+	const addEvent = async (eventInput: ManualEventInput) => {
+		const { success, error, event: newEvent } = await create(eventInput);
 
-      if (!isUserMatch) return false;
+		if (success && newEvent) {
+			setManualAndMeetingEvents((currentEvents) =>
+				sortCalendarEvents([...currentEvents, newEvent]),
+			);
+			toast.success("Event created successfully");
+			return;
+		}
 
-      if (currentView === "year") {
-        const yearStart = new Date(selectedDate.getFullYear(), 0, 1);
-        const yearEnd = new Date(
-          selectedDate.getFullYear(),
-          11,
-          31,
-          23,
-          59,
-          59,
-          999
-        );
-        return eventStartDate <= yearEnd && eventEndDate >= yearStart;
-      }
+		toast.error(error);
+	};
 
-      if (currentView === "month" || currentView === "agenda") {
-        const monthStart = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          1
-        );
-        const monthEnd = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth() + 1,
-          0,
-          23,
-          59,
-          59,
-          999
-        );
-        return eventStartDate <= monthEnd && eventEndDate >= monthStart;
-      }
+	const updateEvent = async (eventInput: Event) => {
+		const { success, error, event: updatedEvent } = await update(eventInput);
 
-      if (currentView === "week") {
-        const dayOfWeek = selectedDate.getDay();
-        const weekStart = new Date(selectedDate);
-        weekStart.setDate(selectedDate.getDate() - dayOfWeek);
-        weekStart.setHours(0, 0, 0, 0);
+		if (success && updatedEvent) {
+			setManualAndMeetingEvents((currentEvents) =>
+				sortCalendarEvents(
+					currentEvents.map((event) =>
+						event.source === "manual" &&
+						event.sourceId === updatedEvent.sourceId
+							? updatedEvent
+							: event,
+					),
+				),
+			);
+			toast.success("Event updated successfully");
+			return;
+		}
 
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
+		toast.error(error);
+	};
 
-        return eventStartDate <= weekEnd && eventEndDate >= weekStart;
-      }
+	const removeEvent = async (eventId: string) => {
+		const { success, error } = await remove(eventId);
 
-      if (currentView === "day") {
-        const dayStart = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          selectedDate.getDate(),
-          0,
-          0,
-          0
-        );
-        const dayEnd = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          selectedDate.getDate(),
-          23,
-          59,
-          59
-        );
-        return eventStartDate <= dayEnd && eventEndDate >= dayStart;
-      }
+		if (success) {
+			setManualAndMeetingEvents((currentEvents) =>
+				currentEvents.filter(
+					(event) => !(event.source === "manual" && event.sourceId === eventId),
+				),
+			);
+			toast.success("Event deleted successfully");
+			return;
+		}
 
-      return false;
-    });
+		toast.error(error);
+	};
 
-    if (selectedColors.length > 0) {
-      dateAndUserFiltered = dateAndUserFiltered.filter((event) => {
-        const eventColor = event.color || "blue";
-        return selectedColors.includes(eventColor);
-      });
-    }
+	const filterEventsBySelectedColors = (color: EventColor) => {
+		const isColorSelected = selectedColors.includes(color);
+		setSelectedColors(
+			isColorSelected
+				? selectedColors.filter((selectedColor) => selectedColor !== color)
+				: [...selectedColors, color],
+		);
+	};
 
-    return dateAndUserFiltered;
-  }, [allEvents, selectedDate, selectedUserId, selectedColors, currentView]);
+	const filterEventsBySelectedUser = (userId: User["id"] | "all") => {
+		setSelectedUserId(userId);
+	};
 
-  const singleDayEvents = useMemo(() => {
-    return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.startDate);
-      const endDate = parseISO(event.endDate);
-      return isSameDay(startDate, endDate);
-    });
-  }, [filteredEvents]);
+	const clearFilter = () => {
+		setSelectedColors([]);
+		setSelectedUserId("all");
+	};
 
-  const multiDayEvents = useMemo(() => {
-    return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.startDate);
-      const endDate = parseISO(event.endDate);
-      return !isSameDay(startDate, endDate);
-    });
-  }, [filteredEvents]);
+	const getSourceEventById = (sourceId: string) =>
+		[...manualAndMeetingEvents, ...googleOverlayEvents].find(
+			(event) => event.sourceId === sourceId,
+		);
 
-  const filterEventsBySelectedColors = (color: EventColor) => {
-    const isColorSelected = selectedColors.includes(color);
-    const newColors = isColorSelected
-      ? selectedColors.filter((c) => c !== color)
-      : [...selectedColors, color];
-    setSelectedColors(newColors);
-  };
+	const value = {
+		selectedDate,
+		setSelectedDate: handleSelectDate,
+		selectedUserId,
+		setSelectedUserId,
+		badgeVariant: settings.badgeVariant,
+		setBadgeVariant: (variant: "dot" | "colored") =>
+			updateSettings({ badgeVariant: variant }),
+		showGoogleOverlay: settings.showGoogleOverlay,
+		setShowGoogleOverlay: (enabled: boolean) =>
+			updateSettings({ showGoogleOverlay: enabled }),
+		remindersEnabled: settings.remindersEnabled,
+		setRemindersEnabled: (enabled: boolean) =>
+			updateSettings({ remindersEnabled: enabled }),
+		reminderLeadMinutes: settings.reminderLeadMinutes,
+		setReminderLeadMinutes: (minutes: number) =>
+			updateSettings({ reminderLeadMinutes: minutes }),
+		users,
+		selectedColors,
+		filterEventsBySelectedColors,
+		filterEventsBySelectedUser,
+		allEvents,
+		filteredEvents,
+		singleDayEvents,
+		multiDayEvents,
+		view: settings.view,
+		use24HourFormat: settings.use24HourFormat,
+		toggleTimeFormat: () =>
+			updateSettings({ use24HourFormat: !settings.use24HourFormat }),
+		setView: (nextView: CalendarView) => updateSettings({ view: nextView }),
+		agendaModeGroupBy: settings.agendaModeGroupBy,
+		setAgendaModeGroupBy: (groupBy: "date" | "color") =>
+			updateSettings({ agendaModeGroupBy: groupBy }),
+		addEvent,
+		updateEvent,
+		removeEvent,
+		getSourceEventById,
+		clearFilter,
+	};
 
-  const filterEventsBySelectedUser = (userId: User["id"] | "all") => {
-    setSelectedUserId(userId);
-  };
-
-  const value = {
-    selectedDate,
-    setSelectedDate: handleSelectDate,
-    selectedUserId,
-    setSelectedUserId,
-    badgeVariant,
-    setBadgeVariant,
-    users,
-    selectedColors,
-    filterEventsBySelectedColors,
-    filterEventsBySelectedUser,
-    allEvents,
-    filteredEvents,
-    singleDayEvents,
-    multiDayEvents,
-    view: currentView,
-    use24HourFormat,
-    toggleTimeFormat,
-    setView,
-    agendaModeGroupBy,
-    setAgendaModeGroupBy,
-    addEvent,
-    updateEvent,
-    removeEvent,
-    clearFilter,
-  };
-
-  return (
-    <CalendarContext.Provider value={value}>
-      {children}
-    </CalendarContext.Provider>
-  );
+	return (
+		<CalendarContext.Provider value={value}>
+			{children}
+		</CalendarContext.Provider>
+	);
 }
 
 export function useCalendar(): CalendarContext {
-  const context = useContext(CalendarContext);
-  if (!context)
-    throw new Error("useCalendar must be used within a CalendarProvider.");
-  return context;
+	const context = useContext(CalendarContext);
+	if (!context)
+		throw new Error("useCalendar must be used within a CalendarProvider.");
+	return context;
 }

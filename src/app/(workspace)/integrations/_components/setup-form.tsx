@@ -1,185 +1,218 @@
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button, Checkbox, Input, Label, ListBox, Select } from "@heroui/react";
 import { useState } from "react";
-import { Integration, IntegrationProvider } from "@/config/types";
+import type { Integration, IntegrationProvider } from "@/config/types";
 
 type SelectableItem = {
-  id?: string;
-  key?: string;
-  gid?: string;
-  name: string;
+	id?: string;
+	key?: string;
+	gid?: string;
+	name: string;
 };
 
 type TrelloData = {
-  workspaceId?: string;
-  boards: SelectableItem[];
+	workspaceId?: string;
+	boards: SelectableItem[];
 };
 
 type SlackData = {
-  workspaceId?: string;
-  channels: SelectableItem[];
+	workspaceId?: string;
+	channels: SelectableItem[];
+};
+
+type NotionData = {
+	workspaceId?: string;
+	databases: SelectableItem[];
 };
 
 type ProjectData = {
-  workspaceId?: string;
-  projects: SelectableItem[];
+	workspaceId?: string;
+	projects: SelectableItem[];
 };
 
-// type SetupFormData =
-//   | { provider: "trello"; data: TrelloData }
-//   | { provider: "slack"; data: SlackData }
-//   | { provider: "asana" | "jira"; data: ProjectData };
-
 interface SetupFormProps {
-  provider: string;
-  data: unknown;
-  onSubmit: (provider: Integration["provider"], config: unknown) => void;
-  onCancel: () => void;
-  closeModal: (isModalOpen: boolean) => void;
-  loading: boolean;
+	provider: string;
+	data: unknown;
+	onSubmit: (
+		provider: Integration["provider"],
+		config: unknown,
+	) => Promise<void>;
+	onCancel: () => void;
+	onRefresh?: () => void;
+	loading: boolean;
 }
 
 export default function SetupForm({
-  provider,
-  data,
-  onSubmit,
-  onCancel,
-  loading,
-  closeModal,
+	provider,
+	data,
+	onSubmit,
+	onCancel,
+	onRefresh,
+	loading,
 }: SetupFormProps) {
-  const [selectedId, setSelectedId] = useState("");
-  const [selectedName, setSelectedName] = useState("");
-  const [createNew, setCreateNew] = useState(false);
-  const [newName, setNewName] = useState("");
+	const [selectedId, setSelectedId] = useState("");
+	const [selectedName, setSelectedName] = useState("");
+	const [createNew, setCreateNew] = useState(false);
+	const [newName, setNewName] = useState("");
 
-  const setupData = data as TrelloData | SlackData | ProjectData;
+	const setupData = data as TrelloData | SlackData | NotionData | ProjectData;
 
-  const items =
-    provider === "trello"
-      ? (data as TrelloData)?.boards
-      : provider === "slack"
-      ? (data as SlackData)?.channels
-      : (data as ProjectData)?.projects;
+	const items =
+		provider === "trello"
+			? (data as TrelloData)?.boards
+			: provider === "slack"
+				? (data as SlackData)?.channels
+				: provider === "notion"
+					? (data as NotionData)?.databases
+					: (data as ProjectData)?.projects;
 
-  const itemLabel =
-    provider === "trello"
-      ? "board"
-      : provider === "slack"
-      ? "channel"
-      : "project";
+	const itemLabel =
+		provider === "trello"
+			? "board"
+			: provider === "slack"
+				? "channel"
+				: provider === "notion"
+					? "database"
+					: "project";
 
-  const handleSubmit = () => {
-    if (createNew) {
-      onSubmit(provider as IntegrationProvider, {
-        createNew: true,
-        [`${itemLabel}Name`]: newName,
-        workspaceId: setupData?.workspaceId,
-      });
-      closeModal(true);
-      return;
-    }
+	const allowCreateNew = provider !== "notion";
+	const isCreatingNew = allowCreateNew && createNew;
 
-    onSubmit(provider as IntegrationProvider, {
-      [`${itemLabel}Id`]: selectedId,
-      [`${itemLabel}Name`]: selectedName,
-      projectKey: selectedId,
-      workspaceId: setupData?.workspaceId,
-    });
+	const handleSubmit = async () => {
+		if (provider === "notion") {
+			await onSubmit(provider as IntegrationProvider, {
+				dataSourceId: selectedId,
+				databaseName: selectedName,
+			});
+			return;
+		}
 
-    closeModal(true);
-  };
+		if (isCreatingNew) {
+			await onSubmit(provider as IntegrationProvider, {
+				createNew: true,
+				[`${itemLabel}Name`]: newName,
+				workspaceId: setupData?.workspaceId,
+			});
+			return;
+		}
 
-  return (
-    <div>
-      <div className="mb-4">
-        <Label className="block text-sm font-medium text-foreground mb-2">
-          Select {itemLabel} for action items:
-        </Label>
+		await onSubmit(provider as IntegrationProvider, {
+			[`${itemLabel}Id`]: selectedId,
+			[`${itemLabel}Name`]: selectedName,
+			projectKey: selectedId,
+			workspaceId: setupData?.workspaceId,
+		});
+	};
 
-        {!createNew ? (
-          <Select
-            value={selectedId}
-            onValueChange={(value) => {
-              const selected = items?.find(
-                (item) =>
-                  item.id === value || item.key === value || item.gid === value
-              );
-              setSelectedId(value);
-              setSelectedName(selected?.name || "");
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={`Choose existing ${itemLabel}...`} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>
-                  {itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)}s
-                </SelectLabel>
-                {items?.map((item) => (
-                  <SelectItem
-                    key={item.id ?? item.key ?? item.gid}
-                    value={item.id ?? item.key ?? item.gid ?? ""}
-                  >
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder={`Enter new ${itemLabel} name...`}
-          />
-        )}
-      </div>
-      <div className="mb-6">
-        <div className="flex items-center gap-2 text-sm">
-          <Checkbox
-            id="create-new"
-            checked={createNew}
-            onCheckedChange={(checked) => setCreateNew(!!checked)}
-          />
+	return (
+		<div>
+			{provider === "notion" ? (
+				<div className="mb-4 rounded-lg border border-dashed p-3 text-sm text-foreground">
+					Share the database with your Notion integration first. If it does not
+					appear yet, click Refresh and wait a few seconds for Notion search to
+					catch up.
+				</div>
+			) : null}
 
-          <Label htmlFor="create-new">Create new {itemLabel}</Label>
-        </div>
-      </div>
+			<div className="mb-4">
+				<Label className="block text-sm font-medium text-foreground mb-2">
+					Select {itemLabel} for action items:
+				</Label>
 
-      <div className="flex gap-3">
-        <Button
-          variant="outline"
-          onClick={onCancel}
-          className="flex-1 cursor-pointer"
-          type="button"
-        >
-          Cancel
-        </Button>
+				{!isCreatingNew ? (
+					<Select
+						aria-label={`Select ${itemLabel} for action items`}
+						selectedKey={selectedId || undefined}
+						onSelectionChange={(key) => {
+							const value = key as string;
+							const selected = items?.find(
+								(item) =>
+									item.id === value || item.key === value || item.gid === value,
+							);
+							setSelectedId(value);
+							setSelectedName(selected?.name || "");
+						}}
+						className="w-full"
+						placeholder={`Choose existing ${itemLabel}...`}
+					>
+						<Select.Trigger>
+							<Select.Value />
+							<Select.Indicator />
+						</Select.Trigger>
+						<Select.Popover>
+							<ListBox>
+								{items?.map((item) => (
+									<ListBox.Item
+										key={item.id ?? item.key ?? item.gid}
+										id={item.id ?? item.key ?? item.gid ?? ""}
+										textValue={item.name}
+									>
+										{item.name}
+										<ListBox.ItemIndicator />
+									</ListBox.Item>
+								))}
+							</ListBox>
+						</Select.Popover>
+					</Select>
+				) : (
+					<Input
+						aria-label={`New ${itemLabel} name`}
+						type="text"
+						value={newName}
+						onChange={(e) => setNewName(e.target.value)}
+						placeholder={`Enter new ${itemLabel} name...`}
+					/>
+				)}
+			</div>
 
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            loading || (!createNew && !selectedId) || (createNew && !newName)
-          }
-          className="flex-1 cursor-pointer"
-          type="button"
-        >
-          {loading ? "Saving..." : "Save"}
-        </Button>
-      </div>
-    </div>
-  );
+			{provider === "notion" ? (
+				<div className="mb-6">
+					<Button
+						variant="outline"
+						onPress={onRefresh}
+						isDisabled={loading}
+						fullWidth
+						className="cursor-pointer"
+					>
+						Refresh databases
+					</Button>
+				</div>
+			) : null}
+
+			{allowCreateNew ? (
+				<div className="mb-6">
+					<div className="flex items-center gap-2 text-sm">
+						<Checkbox
+							isSelected={createNew}
+							onChange={(checked) => setCreateNew(!!checked)}
+						>
+							Create new {itemLabel}
+						</Checkbox>
+					</div>
+				</div>
+			) : null}
+
+			<div className="flex gap-3">
+				<Button
+					variant="outline"
+					onPress={onCancel}
+					className="flex-1 cursor-pointer"
+				>
+					Cancel
+				</Button>
+
+				<Button
+					onPress={handleSubmit}
+					isDisabled={
+						loading ||
+						(!allowCreateNew && !selectedId) ||
+						(allowCreateNew && !isCreatingNew && !selectedId) ||
+						(allowCreateNew && isCreatingNew && !newName)
+					}
+					className="flex-1 cursor-pointer"
+				>
+					{loading ? "Saving..." : "Save"}
+				</Button>
+			</div>
+		</div>
+	);
 }

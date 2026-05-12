@@ -1,39 +1,40 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { Button, Dropdown, Label } from "@heroui/react";
+import { Moon02Icon, Sun03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useTheme } from "next-themes";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
 export function ThemeSwitcher() {
-  const { setTheme } = useTheme();
+	const { setTheme } = useTheme();
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
-          <Sun className="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-          <Moon className="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          Light
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          Dark
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          System
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+	return (
+		<Dropdown>
+			<Button isIconOnly variant="outline" aria-label="Toggle theme">
+				<HugeiconsIcon
+					icon={Sun03Icon}
+					size={18}
+					className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+				/>
+				<HugeiconsIcon
+					icon={Moon02Icon}
+					size={18}
+					className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+				/>
+			</Button>
+			<Dropdown.Popover>
+				<Dropdown.Menu onAction={(key) => setTheme(String(key))}>
+					<Dropdown.Item id="light" textValue="Light">
+						<Label>Light</Label>
+					</Dropdown.Item>
+					<Dropdown.Item id="dark" textValue="Dark">
+						<Label>Dark</Label>
+					</Dropdown.Item>
+					<Dropdown.Item id="system" textValue="System">
+						<Label>System</Label>
+					</Dropdown.Item>
+				</Dropdown.Menu>
+			</Dropdown.Popover>
+		</Dropdown>
+	);
 }

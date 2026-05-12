@@ -1,77 +1,72 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import type { UserIntegrationResult } from "@/config/types";
+import { db } from "@/db";
+import { user, userIntegration } from "@/db/schema";
 import { getCurrentUser } from "@/helpers/user";
-import prisma from "@/lib/prisma";
-import { IntegrationProvider } from "@/config/types";
-
-export type UserIntegrationResult = {
-  provider: IntegrationProvider;
-  name: string;
-  isProviderConnected: boolean;
-  boardName?: string | null;
-  projectName?: string | null;
-  channelName?: string | null;
-};
 
 export async function GET() {
-  try {
-    const currentUser = await getCurrentUser();
+	try {
+		const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+		if (!currentUser) {
+			return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+		}
 
-    const integrations = await prisma.userIntegration.findMany({
-      where: {
-        userId: currentUser.id,
-      },
-    });
+		const integrations = await db
+			.select()
+			.from(userIntegration)
+			.where(eq(userIntegration.userId, currentUser.id));
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        id: currentUser.id,
-      },
-    });
+		const [existingUser] = await db
+			.select()
+			.from(user)
+			.where(eq(user.id, currentUser.id))
+			.limit(1);
 
-    const allProviders: Pick<
-      UserIntegrationResult,
-      "provider" | "name" | "isProviderConnected"
-    >[] = [
-      { provider: "trello", name: "Trello", isProviderConnected: false },
-      { provider: "jira", name: "Jira", isProviderConnected: false },
-      { provider: "asana", name: "Asana", isProviderConnected: false },
-    ];
+		const allProviders: Pick<
+			UserIntegrationResult,
+			"provider" | "name" | "isProviderConnected"
+		>[] = [
+			{ provider: "trello", name: "Trello", isProviderConnected: false },
+			{ provider: "jira", name: "Jira", isProviderConnected: false },
+			{ provider: "asana", name: "Asana", isProviderConnected: false },
+			{ provider: "notion", name: "Notion", isProviderConnected: false },
+		];
 
-    const result: UserIntegrationResult[] = allProviders.map((provider) => {
-      const integration = integrations.find(
-        (i) => i.provider === provider.provider
-      );
+		const result: UserIntegrationResult[] = allProviders.map((provider) => {
+			const integration = integrations.find(
+				(i) => i.provider === provider.provider,
+			);
 
-      return {
-        ...provider,
-        isProviderConnected: !!integration,
-        boardName: integration?.boardName,
-        projectName: integration?.projectName,
-      };
-    });
+			return {
+				...provider,
+				isProviderConnected: !!integration,
+				boardName: integration?.boardName,
+				databaseName:
+					provider.provider === "notion" ? integration?.boardName : null,
+				projectName: integration?.projectName,
+			};
+		});
 
-    if (existingUser?.slackConnected) {
-      result.push({
-        provider: "slack",
-        name: "Slack",
-        isProviderConnected: true,
-        channelName: existingUser.preferredChannelName || "Not Set",
-      });
-    } else {
-      result.push({
-        provider: "slack",
-        name: "Slack",
-        isProviderConnected: false,
-      });
-    }
+		if (existingUser?.slackConnected) {
+			result.push({
+				provider: "slack",
+				name: "Slack",
+				isProviderConnected: true,
+				channelName: existingUser.preferredChannelName || "Not Set",
+			});
+		} else {
+			result.push({
+				provider: "slack",
+				name: "Slack",
+				isProviderConnected: false,
+			});
+		}
 
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("error fetching integration statsu:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
-  }
+		return NextResponse.json(result);
+	} catch (error) {
+		console.error("error fetching integration statsu:", error);
+		return NextResponse.json({ error: "Internal error" }, { status: 500 });
+	}
 }

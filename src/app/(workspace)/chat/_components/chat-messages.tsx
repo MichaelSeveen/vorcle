@@ -1,68 +1,71 @@
-import { VorcleLogo } from "@/components/custom-icons/brand-logo";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+"use client";
 
-interface Message {
-  id: number;
-  content: string;
-  isBot: boolean;
-  timestamp: Date;
-}
+import { VorcleLogo } from "@/components/custom-icons/brand-logo";
+import { useStickToBottom } from "@/components/stick-to-bottom/use-stick-to-bottom";
+import { DotmSquare13 } from "@/components/ui/dotm-square-13";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { ChatMessage } from "@/hooks/use-chat-core";
 
 interface ChatMessagesProps {
-  messages: Message[];
-  isLoading: boolean;
+	messages: ChatMessage[];
+	isLoading: boolean;
 }
 
 export default function ChatMessages({
-  messages,
-  isLoading,
+	messages,
+	isLoading,
 }: ChatMessagesProps) {
-  return (
-    <ScrollArea className="p-3 h-[40rem] w-full mx-auto max-w-4xl">
-      <div className="flex flex-col">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "flex items-center gap-1 mb-2",
-              message.isBot ? "justify-start" : "justify-end"
-            )}
-          >
-            <div
-              className={cn(
-                "items-center justify-center size-8 ring ring-accent rounded-full ml-1",
-                message.isBot ? "flex" : "hidden"
-              )}
-            >
-              <VorcleLogo className="size-5" />
-            </div>
-            <div
-              className={cn(
-                "max-w-[55%] rounded-md p-2",
-                message.isBot
-                  ? "bg-muted text-foreground"
-                  : "bg-primary text-primary-foreground"
-              )}
-            >
-              <p className="text-sm text-pretty">{message.content}</p>
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div
-            className="flex items-center justify-start gap-2 mb-2"
-            aria-live="polite"
-            aria-label="Assistant is typing"
-          >
-            <Loader2 className="size-5 animate-spin" />
-            <p className="text-sm text-muted-foreground">
-              Searching through your meetings...
-            </p>
-          </div>
-        )}
-      </div>
-    </ScrollArea>
-  );
+	const { scrollRef, contentRef } = useStickToBottom({
+		initial: "instant",
+		resize: "smooth",
+	});
+
+	return (
+		<ScrollArea ref={scrollRef} className="h-[28rem]">
+			<div
+				ref={contentRef}
+				className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4"
+			>
+				{messages.map((message) => (
+					<div
+						key={message.id}
+						className={`flex gap-3 ${message.isBot ? "justify-start" : "justify-end"}`}
+					>
+						{message.isBot && (
+							<div className="flex size-8 shrink-0 items-center justify-center rounded-full ring ring-ring bg-muted/20">
+								<VorcleLogo className="size-5" />
+							</div>
+						)}
+						<div
+							className={`max-w-[85%] rounded-lg px-3 py-2 ${
+								message.isBot
+									? "bg-muted text-foreground"
+									: "bg-primary text-accent-foreground"
+							}`}
+						>
+							<p className="whitespace-pre-wrap text-sm leading-6">
+								{message.content}
+							</p>
+						</div>
+					</div>
+				))}
+
+				{isLoading &&
+					messages.length > 0 &&
+					!messages[messages.length - 1].isBot && (
+						<div className="flex items-center gap-3">
+							<DotmSquare13
+								size={24}
+								dotSize={4}
+								speed={1.4}
+								opacityBase={0.1}
+								opacityMid={0.4}
+								opacityPeak={0.95}
+							/>
+							Thinking
+						</div>
+					)}
+			</div>
+		</ScrollArea>
+	);
 }
